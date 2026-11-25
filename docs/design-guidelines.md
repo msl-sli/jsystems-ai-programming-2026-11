@@ -18,6 +18,8 @@ Machine-readable tokens: [`assets/design-tokens.json`](../assets/design-tokens.j
 | DM Sans Medium | [`../assets/fonts/dmsans-medium/DMSans-Medium.woff2`](../assets/fonts/dmsans-medium/DMSans-Medium.woff2) | Weight 500 |
 | DM Sans Bold | [`../assets/fonts/dmsans-bold/DMSans-Bold.woff2`](../assets/fonts/dmsans-bold/DMSans-Bold.woff2) | Weight 700 |
 | Desktop screenshots | [`../assets/screenshots/desktop/`](../assets/screenshots/desktop/) | 1440×900 viewport: `full-page.png` + `01…06-viewport.png` (one per screen, top to bottom) |
+| Header + above the fold (desktop) | [`../assets/screenshots/desktop/header-above-fold.png`](../assets/screenshots/desktop/header-above-fold.png) | 1920×1080 full-screen viewport: promo bar, header, nav, hero — **primary visual reference for QA** |
+| Header + above the fold (mobile) | [`../assets/screenshots/mobile/header-above-fold.png`](../assets/screenshots/mobile/header-above-fold.png) | iPhone 15 first screen: promo bar, mobile header, hero |
 | Mobile screenshots | [`../assets/screenshots/mobile/`](../assets/screenshots/mobile/) | iPhone 15 emulation, 393×659 CSS px @3x: `full-page.png` + `01…08-viewport.png` |
 | Icon font (technical) | `../assets/fonts/icons-blank-theme/Blank-Theme-Icons.woff2` | Magento Blank theme icon font — **not a brand asset, do not use**; prefer an SVG icon set |
 
