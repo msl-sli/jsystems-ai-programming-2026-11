@@ -30,7 +30,10 @@ export function computeFacts(
   today: string,
 ): DeterministicFacts {
   const purchase = parseISO(purchaseDate);
-  const days = differenceInCalendarDays(parseISO(today), purchase);
+  const rawDays = differenceInCalendarDays(parseISO(today), purchase);
+  // The browser validates against its local date (ADR-001 §3): one day ahead of APP_TIME_ZONE
+  // is clock/time-zone skew and counts as the purchase day. The HTTP layer rejects anything later.
+  const days = rawDays === -1 ? 0 : rawDays;
   const notInFuture = days >= 0;
   const warrantyEnd = format(
     addMonths(purchase, WARRANTY_MONTHS),

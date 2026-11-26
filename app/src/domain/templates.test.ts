@@ -23,6 +23,7 @@ import {
   SUPPORT_EMAIL,
   TEMPLATE_POLICY_FACTS,
   decideWithTemplate,
+  elapsedDaysPl,
 } from "./templates";
 
 const TODAY = "2026-11-26";
@@ -330,6 +331,40 @@ const byName = (name: string) => {
   if (!s) throw new Error(name);
   return s;
 };
+
+describe("CP-2 review fixes", () => {
+  it.each([
+    [1, "minął 1 dzień"],
+    [2, "minęły 2 dni"],
+    [4, "minęły 4 dni"],
+    [5, "minęło 5 dni"],
+    [12, "minęło 12 dni"],
+    [14, "minęło 14 dni"],
+    [22, "minęły 22 dni"],
+    [0, "minęło 0 dni"],
+  ])("elapsedDaysPl(%i) = %s", (n, text) => {
+    expect(elapsedDaysPl(n)).toBe(text);
+  });
+
+  it("R1 outside the warranty offers only the paid repair, not a complaint", () => {
+    const s = byName("R1 return outside window");
+    const { decision } = run({ ...s, facts: FACTS_OLD });
+    const steps = decision.nextSteps.join(" ");
+    expect(steps).not.toContain("reklamację");
+    expect(steps).toContain("Płatna naprawa");
+    expect(steps).toContain(SUPPORT_EMAIL);
+  });
+
+  it.each(["R4 blurry", "R4 no_device"])(
+    "%s findings do not judge damage or condition from an unusable photo",
+    (name) => {
+      const { decision } = run(byName(name));
+      expect(decision.photoFindingsSummary).not.toMatch(
+        /uszkodze|Stan sprzętu/,
+      );
+    },
+  );
+});
 
 describe("justifications", () => {
   it("R1 states the day count and the 14-day limit (AC-20)", () => {

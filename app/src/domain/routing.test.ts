@@ -37,10 +37,28 @@ type ScreeningSpec = {
 function screening(spec: ScreeningSpec = {}): ScreeningResult {
   const certainty = (id: ScreeningQuestionId) =>
     spec.refused?.includes(id) ? 0 : (spec.certainty?.[id] ?? 0.95);
+  // Probabilities carry the intended certainty: routing recomputes certainty from them.
+  const probabilitiesFor = (id: ScreeningQuestionId, value: unknown) => {
+    const c = certainty(id);
+    if (spec.refused?.includes(id) || value === null) return {};
+    if (id === "visible_damage_or_use") {
+      return value === true
+        ? { true: c, false: 1 - c }
+        : { true: 1 - c, false: c };
+    }
+    // Spread the remaining mass so that no other option exceeds the top one.
+    const rest = Math.max(0, 1 - c);
+    const parts = c > 0 ? Math.max(1, Math.ceil(rest / c)) : 1;
+    const others = Object.fromEntries(
+      Array.from({ length: parts }, (_, i) => [`__other${i}`, rest / parts]),
+    );
+    return { [String(value)]: c, ...others };
+  };
   const answer = <V>(id: ScreeningQuestionId, value: V | null) => ({
     value: spec.refused?.includes(id) ? null : value,
-    probabilities: {},
-    certainty: certainty(id),
+    probabilities: probabilitiesFor(id, value),
+    // Deliberately inflated: routing must recompute certainty from the probabilities.
+    certainty: 1,
     // Deliberately wrong: routing must never trust the incoming flags.
     confident: true,
     refused: spec.refused?.includes(id) ?? false,
@@ -70,6 +88,14 @@ function screening(spec: ScreeningSpec = {}): ScreeningResult {
     latencyMs: 1,
   };
 }
+
+describe("tampered screening", () => {
+  it("recomputes certainty from probabilities instead of trusting the sent value", () => {
+    const s = screening({ certainty: { condition: 0.5 } });
+    expect(s.answers.condition.certainty).toBe(1);
+    expect(uncertainAreasOf(s, T)).toEqual(["condition"]);
+  });
+});
 
 function facts(over: Partial<DeterministicFacts> = {}): DeterministicFacts {
   return {

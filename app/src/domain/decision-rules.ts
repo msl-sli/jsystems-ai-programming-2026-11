@@ -41,15 +41,27 @@ export function resolveOutcome(
   citedRuleIds: readonly string[],
   policyRuleIds: readonly string[],
 ): ResolvedOutcome {
-  const ids = [...new Set(citedRuleIds)].slice(0, MAX_CITED);
-  if (ids.some((id) => id.startsWith(OTHER_PREFIX[caseType]))) {
+  // Validate every unique ID first, then truncate, so extra IDs cannot bypass validation.
+  const unique = [...new Set(citedRuleIds)];
+  if (unique.some((id) => id.startsWith(OTHER_PREFIX[caseType]))) {
     return { ok: false, why: "not_allowed_for_case_type" };
   }
-  if (ids.length === 0 || ids.some((id) => !policyRuleIds.includes(id))) {
+  if (unique.length === 0 || unique.some((id) => !policyRuleIds.includes(id))) {
     return { ok: false, why: "unknown_rule_id" };
   }
+  const ids = unique.slice(0, MAX_CITED);
 
-  if (outcome === "manual_review") return accept("manual_review", ids);
+  // A date rule (RET-1 / CMP-1) decides the case: no source may turn it into anything but a
+  // rejection, not even manual review (AC-20, AC-21).
+  if (outcome === "manual_review") {
+    if (caseType === "return" && !facts.withinReturnWindow) {
+      return { ok: false, why: "outside_return_window" };
+    }
+    if (caseType === "complaint" && !facts.withinWarranty) {
+      return { ok: false, why: "outside_warranty" };
+    }
+    return accept("manual_review", ids);
+  }
 
   if (caseType === "return") {
     if (outcome === "rejected") return accept("return_rejected", ids);

@@ -28,7 +28,9 @@ const validComplaint = {
 function issuesFor(input: unknown, today = TODAY) {
   const result = buildCaseInputSchema(today).safeParse(input);
   if (result.success) return {};
-  return Object.fromEntries(result.error.issues.map((i) => [i.path.join("."), i.message]));
+  return Object.fromEntries(
+    result.error.issues.map((i) => [i.path.join("."), i.message]),
+  );
 }
 
 describe("CASE_CATEGORIES (AC-03)", () => {
@@ -56,13 +58,21 @@ describe("buildCaseInputSchema", () => {
   });
 
   it("requires a case type and a category without defaults (AC-02, AC-03)", () => {
-    const issues = issuesFor({ ...validReturn, caseType: undefined, category: undefined });
+    const issues = issuesFor({
+      ...validReturn,
+      caseType: undefined,
+      category: undefined,
+    });
     expect(issues.caseType).toBe(CASE_INPUT_MESSAGES.caseTypeRequired);
     expect(issues.category).toBe(CASE_INPUT_MESSAGES.categoryRequired);
   });
 
   it("rejects an unknown case type and category", () => {
-    const issues = issuesFor({ ...validReturn, caseType: "exchange", category: "fridge" });
+    const issues = issuesFor({
+      ...validReturn,
+      caseType: "exchange",
+      category: "fridge",
+    });
     expect(issues.caseType).toBe(CASE_INPUT_MESSAGES.caseTypeRequired);
     expect(issues.category).toBe(CASE_INPUT_MESSAGES.categoryRequired);
   });
@@ -86,17 +96,24 @@ describe("buildCaseInputSchema", () => {
     ["2026-11-26", undefined],
     ["2016-11-26", undefined],
     ["2016-11-25", "Podaj datę zakupu z ostatnich 10 lat."],
-  ])("purchaseDate %s relative to today 2026-11-26 (AC-05)", (purchaseDate, message) => {
-    expect(issuesFor({ ...validReturn, purchaseDate }).purchaseDate).toBe(message);
-  });
+  ])(
+    "purchaseDate %s relative to today 2026-11-26 (AC-05)",
+    (purchaseDate, message) => {
+      expect(issuesFor({ ...validReturn, purchaseDate }).purchaseDate).toBe(
+        message,
+      );
+    },
+  );
 
   it("handles the 10-year bound from a leap day", () => {
-    expect(issuesFor({ ...validReturn, purchaseDate: "2018-02-28" }, "2028-02-29").purchaseDate).toBe(
-      undefined,
-    );
-    expect(issuesFor({ ...validReturn, purchaseDate: "2018-02-27" }, "2028-02-29").purchaseDate).toBe(
-      CASE_INPUT_MESSAGES.purchaseDateTooOld,
-    );
+    expect(
+      issuesFor({ ...validReturn, purchaseDate: "2018-02-28" }, "2028-02-29")
+        .purchaseDate,
+    ).toBe(undefined);
+    expect(
+      issuesFor({ ...validReturn, purchaseDate: "2018-02-27" }, "2028-02-29")
+        .purchaseDate,
+    ).toBe(CASE_INPUT_MESSAGES.purchaseDateTooOld);
   });
 
   it.each(["", "2026-13-01", "2026-02-30", "26-11-2026", "2026-1-5"])(
@@ -134,10 +151,13 @@ describe("buildCaseInputSchema", () => {
 
   it("re-applies the description rules when the case type changes (AC-13)", () => {
     const short = "Nie pasuje kolor.";
-    expect(issuesFor({ ...validReturn, description: short }).description).toBeUndefined();
-    expect(issuesFor({ ...validReturn, caseType: "complaint", description: short }).description).toBe(
-      CASE_INPUT_MESSAGES.complaintDescription,
-    );
+    expect(
+      issuesFor({ ...validReturn, description: short }).description,
+    ).toBeUndefined();
+    expect(
+      issuesFor({ ...validReturn, caseType: "complaint", description: short })
+        .description,
+    ).toBe(CASE_INPUT_MESSAGES.complaintDescription);
   });
 
   it("reports every invalid field at once, including the description rule (AC-12)", () => {
@@ -156,6 +176,16 @@ describe("buildCaseInputSchema", () => {
     ]);
   });
 
+  it.each([
+    ["empty name", { productName: "" }],
+    ["empty date", { purchaseDate: "" }],
+    ["missing category", { category: undefined }],
+    ["future date", { purchaseDate: "2027-01-01" }],
+  ])("shows the complaint description error together with %s (AC-12)", (_n, patch) => {
+    const issues = issuesFor({ ...validComplaint, description: "x".repeat(19), ...patch });
+    expect(issues.description).toBe(CASE_INPUT_MESSAGES.complaintDescription);
+  });
+
   it("trims productName and description in the parsed output", () => {
     const parsed = buildCaseInputSchema(TODAY).parse({
       ...validComplaint,
@@ -167,23 +197,29 @@ describe("buildCaseInputSchema", () => {
   });
 
   it("rejects unknown keys", () => {
-    expect(buildCaseInputSchema(TODAY).safeParse({ ...validReturn, extra: 1 }).success).toBe(false);
+    expect(
+      buildCaseInputSchema(TODAY).safeParse({ ...validReturn, extra: 1 })
+        .success,
+    ).toBe(false);
   });
 });
 
 describe("CaseInputSchema (server, no date bounds)", () => {
   it("accepts dates outside the form bounds because the server recomputes facts", () => {
-    expect(CaseInputSchema.safeParse({ ...validReturn, purchaseDate: "2030-01-01" }).success).toBe(
-      true,
-    );
+    expect(
+      CaseInputSchema.safeParse({ ...validReturn, purchaseDate: "2030-01-01" })
+        .success,
+    ).toBe(true);
   });
 
   it("still enforces the field rules", () => {
-    expect(CaseInputSchema.safeParse({ ...validComplaint, description: "krótko" }).success).toBe(
-      false,
-    );
-    expect(CaseInputSchema.safeParse({ ...validReturn, purchaseDate: "2026-02-30" }).success).toBe(
-      false,
-    );
+    expect(
+      CaseInputSchema.safeParse({ ...validComplaint, description: "krótko" })
+        .success,
+    ).toBe(false);
+    expect(
+      CaseInputSchema.safeParse({ ...validReturn, purchaseDate: "2026-02-30" })
+        .success,
+    ).toBe(false);
   });
 });

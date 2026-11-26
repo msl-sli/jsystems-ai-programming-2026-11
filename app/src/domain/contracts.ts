@@ -24,9 +24,14 @@ export const CaseCategorySchema = z.enum(CASE_CATEGORIES);
 
 export const IMAGE_MAX_DIMENSION = 4096;
 
+/** Compressed photo limit (ADR-002 §5); the HTTP layer also checks the decoded size. */
+export const IMAGE_MAX_BYTES = 1.5 * 1024 * 1024;
+/** Base64 length of IMAGE_MAX_BYTES bytes. */
+export const IMAGE_MAX_BASE64_LENGTH = Math.ceil(IMAGE_MAX_BYTES / 3) * 4;
+
 export const CaseImageSchema = z.strictObject({
   mediaType: z.literal("image/jpeg"),
-  base64: z.string().min(1),
+  base64: z.string().min(1).max(IMAGE_MAX_BASE64_LENGTH),
   width: z.int().min(1).max(IMAGE_MAX_DIMENSION),
   height: z.int().min(1).max(IMAGE_MAX_DIMENSION),
 });
@@ -121,14 +126,31 @@ export const OUTCOMES = ["accepted", "rejected", "manual_review"] as const;
 export const OutcomeSchema = z.enum(OUTCOMES);
 export type Outcome = z.infer<typeof OutcomeSchema>;
 
-export const ManualReviewKindSchema = z.enum(["better_photo", "contact_support"]).nullable();
+export const ManualReviewKindSchema = z
+  .enum(["better_photo", "contact_support"])
+  .nullable();
 export type ManualReviewKind = z.infer<typeof ManualReviewKindSchema>;
 
-export const ROUTE_RULES = ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"] as const;
+export const ROUTE_RULES = [
+  "R1",
+  "R2",
+  "R3",
+  "R4",
+  "R5",
+  "R6",
+  "R7",
+  "R8",
+  "R9",
+  "R10",
+] as const;
 export const RouteRuleSchema = z.enum(ROUTE_RULES);
 export type RouteRule = z.infer<typeof RouteRuleSchema>;
 
-export const DECISION_MODES = ["hybrid", "decisions-only", "llm-always"] as const;
+export const DECISION_MODES = [
+  "hybrid",
+  "decisions-only",
+  "llm-always",
+] as const;
 export const DecisionModeSchema = z.enum(DECISION_MODES);
 export type DecisionMode = z.infer<typeof DecisionModeSchema>;
 
@@ -149,7 +171,10 @@ export const LlmRouteSchema = z.strictObject({
   /** Set for R1/R2 in llm-always mode: category is fixed by code, the LLM only explains. */
   fixedCategory: DecisionCategorySchema.optional(),
 });
-export const RouteSchema = z.discriminatedUnion("kind", [TemplateRouteSchema, LlmRouteSchema]);
+export const RouteSchema = z.discriminatedUnion("kind", [
+  TemplateRouteSchema,
+  LlmRouteSchema,
+]);
 export type Route = z.infer<typeof RouteSchema>;
 export type TemplateRoute = z.infer<typeof TemplateRouteSchema>;
 export type LlmRoute = z.infer<typeof LlmRouteSchema>;
@@ -216,6 +241,40 @@ export const DecisionOutputSchema = z
   });
 export type DecisionOutput = z.infer<typeof DecisionOutputSchema>;
 
+const WireSignalReviewItem = z.strictObject({
+  verdict: z.enum(["agree", "disagree", "not_assessable"]),
+  note: z.string(),
+});
+
+/**
+ * The schema sent to the model as `json_schema` (CP-2 review): only types, enums and required
+ * keys, which every strict structured-output provider accepts. Length limits, the rule-ID pattern
+ * and the manual_review/uncertainty rule are checked afterwards with DecisionOutputSchema, whose
+ * failure triggers the corrective retry (ADR-003 §3.4).
+ */
+export const DecisionOutputWireSchema = z.strictObject({
+  outcome: OutcomeSchema,
+  photoProblem: z.boolean(),
+  citedRuleIds: z.array(z.string()),
+  evidence: z.array(
+    z.strictObject({
+      source: z.enum(["photo", "date", "description", "screening"]),
+      text: z.string(),
+    }),
+  ),
+  signalReview: z.strictObject({
+    photo_quality: WireSignalReviewItem,
+    observed_category: WireSignalReviewItem,
+    visible_damage_or_use: WireSignalReviewItem,
+    condition: WireSignalReviewItem,
+  }),
+  greetingPl: z.string(),
+  justificationPl: z.string(),
+  photoFindingsPl: z.string(),
+  nextStepsPl: z.array(z.string()),
+  uncertaintyPl: z.string().nullable(),
+});
+
 export const LlmFindingsSchema = z.strictObject({
   photoFindingsPl: z.string().min(1).max(600),
   evidence: z.array(EvidenceSchema).max(5),
@@ -268,14 +327,20 @@ export const ChangeDecisionResultSchema = z.discriminatedUnion("accepted", [
     category: DecisionCategorySchema,
     label: z.string().min(1),
   }),
-  z.strictObject({ accepted: z.literal(false), why: ChangeRefusalReasonSchema }),
+  z.strictObject({
+    accepted: z.literal(false),
+    why: ChangeRefusalReasonSchema,
+  }),
 ]);
 export type ChangeDecisionResult = z.infer<typeof ChangeDecisionResultSchema>;
 
 export const ChatCaseContextSchema = z.strictObject({
   caseInput: CaseInputSchema,
   screening: ScreeningResultSchema,
-  decisionHistory: z.array(DecisionHistoryEntrySchema).min(1).max(DECISION_HISTORY_MAX),
+  decisionHistory: z
+    .array(DecisionHistoryEntrySchema)
+    .min(1)
+    .max(DECISION_HISTORY_MAX),
   firstMessage: FirstMessageSchema,
   llmFindings: LlmFindingsSchema.optional(),
 });
@@ -292,7 +357,9 @@ export const ScreeningRequestSchema = z.strictObject({
 });
 export type ScreeningRequest = z.infer<typeof ScreeningRequestSchema>;
 
-export const ScreeningResponseSchema = z.strictObject({ screening: ScreeningResultSchema });
+export const ScreeningResponseSchema = z.strictObject({
+  screening: ScreeningResultSchema,
+});
 export type ScreeningResponse = z.infer<typeof ScreeningResponseSchema>;
 
 export const DecisionRequestSchema = z.strictObject({

@@ -121,9 +121,17 @@ describe("computeFacts", () => {
     expect(computeFacts("2026-10-24", "2026-10-26").daysSincePurchase).toBe(2);
   });
 
-  it("future purchase date (server-side only): negative days, all windows false, no throw", () => {
+  it("a purchase date one day ahead (client time zone skew) counts as day 0", () => {
     const f = computeFacts("2026-11-27", "2026-11-26");
-    expect(f.daysSincePurchase).toBe(-1);
+    expect(f.daysSincePurchase).toBe(0);
+    expect(f.withinReturnWindow).toBe(true);
+    expect(f.withinWarranty).toBe(true);
+    expect(f.withinDeadOnArrival).toBe(true);
+  });
+
+  it("a purchase date more than one day ahead: negative days, all windows false, no throw", () => {
+    const f = computeFacts("2026-11-28", "2026-11-26");
+    expect(f.daysSincePurchase).toBe(-2);
     expect(f.withinReturnWindow).toBe(false);
     expect(f.withinWarranty).toBe(false);
     expect(f.withinDeadOnArrival).toBe(false);

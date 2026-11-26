@@ -63,18 +63,28 @@ export function isIsoCalendarDate(value: string): boolean {
 
 /** Earliest accepted purchase date: today minus 10 years (month-end clamped). */
 export function earliestPurchaseDate(today: string): string {
-  return format(subYears(parseISO(today), PURCHASE_DATE_MAX_YEARS), "yyyy-MM-dd");
+  return format(
+    subYears(parseISO(today), PURCHASE_DATE_MAX_YEARS),
+    "yyyy-MM-dd",
+  );
 }
 
 const purchaseDateField = z
   .string({ error: CASE_INPUT_MESSAGES.purchaseDateRequired })
-  .refine(isIsoCalendarDate, { error: CASE_INPUT_MESSAGES.purchaseDateRequired, abort: true });
+  .refine(isIsoCalendarDate, {
+    error: CASE_INPUT_MESSAGES.purchaseDateRequired,
+    // No `abort`: an aborting issue would also skip the object-level description rule (AC-12).
+  });
 
 function buildSchema(dateField: z.ZodType<string>) {
   return z
     .strictObject({
-      caseType: z.enum(CASE_TYPES, { error: CASE_INPUT_MESSAGES.caseTypeRequired }),
-      category: z.enum(CASE_CATEGORIES, { error: CASE_INPUT_MESSAGES.categoryRequired }),
+      caseType: z.enum(CASE_TYPES, {
+        error: CASE_INPUT_MESSAGES.caseTypeRequired,
+      }),
+      category: z.enum(CASE_CATEGORIES, {
+        error: CASE_INPUT_MESSAGES.categoryRequired,
+      }),
       productName: z
         .string({ error: CASE_INPUT_MESSAGES.productName })
         .trim()
@@ -87,7 +97,8 @@ function buildSchema(dateField: z.ZodType<string>) {
       (data, ctx) => {
         // Runs even when other fields failed, so all field errors show at once (AC-12).
         const raw = data as { caseType?: unknown; description?: unknown };
-        const description = typeof raw.description === "string" ? raw.description.trim() : "";
+        const description =
+          typeof raw.description === "string" ? raw.description.trim() : "";
         if (raw.caseType === "complaint") {
           if (
             description.length < COMPLAINT_DESCRIPTION_MIN ||
@@ -122,10 +133,17 @@ export type CaseInput = z.output<typeof CaseInputSchema>;
 export function buildCaseInputSchema(today: string) {
   const earliest = earliestPurchaseDate(today);
   const boundedDate = purchaseDateField.superRefine((value, ctx) => {
+    if (!isIsoCalendarDate(value)) return; // already reported as "Podaj datę zakupu."
     if (value > today) {
-      ctx.addIssue({ code: "custom", message: CASE_INPUT_MESSAGES.purchaseDateFuture });
+      ctx.addIssue({
+        code: "custom",
+        message: CASE_INPUT_MESSAGES.purchaseDateFuture,
+      });
     } else if (value < earliest) {
-      ctx.addIssue({ code: "custom", message: CASE_INPUT_MESSAGES.purchaseDateTooOld });
+      ctx.addIssue({
+        code: "custom",
+        message: CASE_INPUT_MESSAGES.purchaseDateTooOld,
+      });
     }
   });
   return buildSchema(boundedDate);

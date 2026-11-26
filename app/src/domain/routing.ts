@@ -33,6 +33,13 @@ export function certaintyOf(
   return Math.max(0, ...Object.values(probabilities));
 }
 
+export const QUESTION_KINDS: Record<ScreeningQuestionId, AnswerKind> = {
+  photo_quality: "choice",
+  observed_category: "choice",
+  visible_damage_or_use: "boolean",
+  condition: "score",
+};
+
 export function isConfident(certainty: number, threshold: number): boolean {
   return certainty >= threshold;
 }
@@ -48,10 +55,12 @@ export function uncertainAreasOf(
 ): ScreeningQuestionId[] {
   return SCREENING_QUESTION_IDS.filter((id) => {
     const answer = screening.answers[id];
+    // The sent `certainty` is ignored too: it is recomputed from the probabilities.
+    const certainty = certaintyOf(QUESTION_KINDS[id], answer.probabilities);
     return (
       answer.refused ||
       answer.value === null ||
-      !isConfident(answer.certainty, threshold)
+      !isConfident(certainty, threshold)
     );
   });
 }

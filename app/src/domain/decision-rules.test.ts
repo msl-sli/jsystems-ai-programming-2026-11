@@ -73,8 +73,17 @@ describe("resolveOutcome: return", () => {
     }
   });
 
-  it("manual_review is allowed regardless of dates", () => {
-    for (const f of [day0, day15, months24p1]) {
+  it("manual_review is refused when the date rule already rejects the return (AC-20)", () => {
+    expect(
+      resolveOutcome("return", "manual_review", day15, ["RET-4"], RET),
+    ).toEqual({
+      ok: false,
+      why: "outside_return_window",
+    });
+  });
+
+  it("manual_review is allowed inside the return window", () => {
+    for (const f of [day0]) {
       expect(
         resolveOutcome("return", "manual_review", f, ["RET-3"], RET),
       ).toEqual({
@@ -146,6 +155,12 @@ describe("resolveOutcome: complaint", () => {
       ok: false,
       why: "outside_warranty",
     });
+  });
+
+  it("manual_review is refused when the warranty has expired (AC-21)", () => {
+    expect(
+      resolveOutcome("complaint", "manual_review", months24p1, ["CMP-6"], CMP),
+    ).toEqual({ ok: false, why: "outside_warranty" });
   });
 
   it("rejected and manual_review are allowed outside the warranty and add nothing", () => {
@@ -233,6 +248,18 @@ describe("resolveOutcome: rule id validation", () => {
       ok: true,
       citedRuleIds: ["RET-1", "RET-2", "RET-3", "RET-4", "RET-5"],
     });
+  });
+
+  it("validates every unique ID before truncating to five", () => {
+    expect(
+      resolveOutcome(
+        "return",
+        "rejected",
+        day0,
+        ["RET-1", "RET-2", "RET-3", "RET-4", "RET-5", "RET-99"],
+        RET,
+      ),
+    ).toEqual({ ok: false, why: "unknown_rule_id" });
   });
 
   it("does not mutate its inputs", () => {

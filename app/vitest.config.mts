@@ -10,6 +10,8 @@ export default defineConfig({
     alias: { "@": src },
   },
   test: {
+    // Pin the zone so date tests (DST weeks, local "today") are deterministic on any host.
+    env: { TZ: "Europe/Warsaw" },
     projects: [
       {
         extends: true,

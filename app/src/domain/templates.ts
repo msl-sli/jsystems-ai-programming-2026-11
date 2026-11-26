@@ -107,6 +107,16 @@ export function daysPl(n: number): string {
   return n === 1 ? "1 dzień" : `${n} dni`;
 }
 
+/** "od zakupu minął 1 dzień" / "minęły 2 dni" / "minęło 5 dni" (verb agrees with the number). */
+export function elapsedDaysPl(n: number): string {
+  if (n === 1) return "minął 1 dzień";
+  const lastDigit = n % 10;
+  const lastTwo = n % 100;
+  const few =
+    lastDigit >= 2 && lastDigit <= 4 && (lastTwo < 12 || lastTwo > 14);
+  return `${few ? "minęły" : "minęło"} ${n} dni`;
+}
+
 // ---------------------------------------------------------------- photo findings
 
 type Answers = ScreeningResult["answers"];
@@ -148,7 +158,7 @@ const CONDITION_TEXT = [
   "jak nowy, bez widocznych śladów",
   "drobne ślady widoczne tylko z bliska",
   "wyraźne ślady używania",
-  "sprzęt jest uszkodzony",
+  "uszkodzony",
 ] as const;
 
 function assessed<T>(answer: Answer<T>): T | null {
@@ -159,12 +169,13 @@ function notAssessed(id: ScreeningQuestionId): string {
   return `${QUESTION_LABELS[id]}: nie udało się ocenić z wystarczającą pewnością.`;
 }
 
-function photoFindings(a: Answers): string {
+/** With a failed photo gate (R4/R5) only the photo and device sentences are meaningful. */
+function photoFindings(a: Answers, photoGate: boolean): string {
   const quality = assessed(a.photo_quality);
   const observed = assessed(a.observed_category);
   const damage = assessed(a.visible_damage_or_use);
   const condition = assessed(a.condition);
-  return [
+  const gate = [
     quality === null
       ? notAssessed("photo_quality")
       : quality === "ok"
@@ -175,6 +186,10 @@ function photoFindings(a: Answers): string {
       : observed === "no_device"
         ? "Na zdjęciu nie widać sprzętu."
         : `Rozpoznany rodzaj sprzętu: ${OBSERVED_NAMES[observed]}.`,
+  ];
+  if (photoGate) return gate.join(" ");
+  return [
+    ...gate,
     damage === null
       ? notAssessed("visible_damage_or_use")
       : damage
@@ -222,6 +237,7 @@ function nextSteps(
   rule: RouteRule,
   category: DecisionCategory,
   kind: TemplateRoute["manualReviewKind"],
+  facts: DeterministicFacts,
 ): string[] {
   switch (category) {
     case "return_accepted":
@@ -242,6 +258,12 @@ function nextSteps(
         `Płatna naprawa jest dostępna po kontakcie z obsługą: ${SUPPORT_EMAIL}.`,
       ];
     case "return_rejected":
+      if (rule === "R1" && !facts.withinWarranty) {
+        // A complaint would be rejected by CMP-1, so only the paid repair remains.
+        return [
+          `Płatna naprawa jest dostępna po kontakcie z obsługą: ${SUPPORT_EMAIL}.`,
+        ];
+      }
       return rule === "R1"
         ? [
             `Jeśli sprzęt jest wadliwy, możesz złożyć reklamację (gwarancja ${WARRANTY_MONTHS} miesiące od zakupu).`,
@@ -309,7 +331,7 @@ function justification(rule: RouteRule, c: Ctx): string {
       return `Na zdjęciu widoczne są ślady używania lub uszkodzenia, a zwrot jest możliwy tylko dla sprzętu bez takich śladów ${cite}.`;
     case "R8":
       if (category !== "return_accepted") break;
-      return `Zgłoszenie złożono ${daysPl(facts.daysSincePurchase)} od zakupu, w limicie zwrotu wynoszącym ${RETURN_WINDOW_DAYS} dni, a na zdjęciu nie widać śladów używania ani uszkodzeń ${cite}.`;
+      return `Od zakupu ${elapsedDaysPl(facts.daysSincePurchase)}, czyli zwrot mieści się w limicie ${RETURN_WINDOW_DAYS} dni, a na zdjęciu nie widać śladów używania ani uszkodzeń ${cite}.`;
     case "R9":
       if (category !== "manual_review") break;
       return `Wyniki analizy zdjęcia są niespójne: ślady używania i stan sprzętu nie pasują do siebie, więc stan musi ocenić konsultant ${cite}.`;
@@ -384,11 +406,15 @@ export function decideWithTemplate(
     category: resolved.category,
     cite: `(${resolved.citedRuleIds.join(", ")})`,
   });
-  const findings = photoFindings(screening.answers);
+  const findings = photoFindings(
+    screening.answers,
+    route.rule === "R4" || route.rule === "R5",
+  );
   const steps = nextSteps(
     route.rule,
     resolved.category,
     route.manualReviewKind,
+    facts,
   );
 
   const decision: DecisionResult = {

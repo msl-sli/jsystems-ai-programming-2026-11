@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   AUTOMATED_DECISION_NOTICE,
+  DecisionOutputWireSchema,
+  IMAGE_MAX_BASE64_LENGTH,
   CaseImageSchema,
   CaseInputSchema,
   ChangeDecisionInputSchema,
@@ -27,13 +30,24 @@ const caseInput = {
   description: "Na ekranie pojawiają się pionowe linie od tygodnia.",
 } as const;
 
-const caseImage = { mediaType: "image/jpeg", base64: "/9j/4AAQ", width: 1200, height: 900 };
+const caseImage = {
+  mediaType: "image/jpeg",
+  base64: "/9j/4AAQ",
+  width: 1200,
+  height: 900,
+};
 
 const screening = {
   answers: {
     photo_quality: {
       value: "ok",
-      probabilities: { ok: 0.91, blurry: 0.05, too_dark: 0.02, device_not_fully_visible: 0.01, no_device: 0.01 },
+      probabilities: {
+        ok: 0.91,
+        blurry: 0.05,
+        too_dark: 0.02,
+        device_not_fully_visible: 0.01,
+        no_device: 0.01,
+      },
       certainty: 0.91,
       confident: true,
       refused: false,
@@ -53,7 +67,13 @@ const screening = {
       confident: false,
       refused: false,
     },
-    condition: { value: null, probabilities: {}, certainty: 0, confident: false, refused: true },
+    condition: {
+      value: null,
+      probabilities: {},
+      certainty: 0,
+      confident: false,
+      refused: true,
+    },
   },
   uncertainAreas: ["visible_damage_or_use", "condition"],
   model: "openai/gpt-6-luna-decisions",
@@ -107,6 +127,7 @@ describe("CaseImageSchema", () => {
     { ...caseImage, width: 0 },
     { ...caseImage, height: 4097 },
     { ...caseImage, width: 10.5 },
+    { ...caseImage, base64: "A".repeat(IMAGE_MAX_BASE64_LENGTH + 4) },
   ])("rejects %j", (image) => {
     expect(CaseImageSchema.safeParse(image).success).toBe(false);
   });
@@ -125,7 +146,10 @@ describe("ScreeningResultSchema", () => {
 
   it("rejects a condition outside 0..3 and certainty outside 0..1", () => {
     const bad = structuredClone(screening) as unknown as {
-      answers: { condition: { value: number | null }; photo_quality: { certainty: number } };
+      answers: {
+        condition: { value: number | null };
+        photo_quality: { certainty: number };
+      };
     };
     bad.answers.condition.value = 4;
     expect(ScreeningResultSchema.safeParse(bad).success).toBe(false);
@@ -136,7 +160,10 @@ describe("ScreeningResultSchema", () => {
 
   it("rejects an unknown uncertain area", () => {
     expect(
-      ScreeningResultSchema.safeParse({ ...screening, uncertainAreas: ["damage_cause"] }).success,
+      ScreeningResultSchema.safeParse({
+        ...screening,
+        uncertainAreas: ["damage_cause"],
+      }).success,
     ).toBe(false);
   });
 });
@@ -153,7 +180,11 @@ describe("RouteSchema", () => {
       }).success,
     ).toBe(true);
     expect(
-      RouteSchema.safeParse({ kind: "llm", rule: "R3", uncertainAreas: ["condition"] }).success,
+      RouteSchema.safeParse({
+        kind: "llm",
+        rule: "R3",
+        uncertainAreas: ["condition"],
+      }).success,
     ).toBe(true);
     expect(
       RouteSchema.safeParse({
@@ -166,9 +197,10 @@ describe("RouteSchema", () => {
   });
 
   it("rejects an unknown rule", () => {
-    expect(RouteSchema.safeParse({ kind: "llm", rule: "R11", uncertainAreas: [] }).success).toBe(
-      false,
-    );
+    expect(
+      RouteSchema.safeParse({ kind: "llm", rule: "R11", uncertainAreas: [] })
+        .success,
+    ).toBe(false);
   });
 });
 
@@ -178,15 +210,23 @@ describe("DecisionResultSchema and FirstMessageSchema", () => {
     expect(FirstMessageSchema.safeParse(firstMessage).success).toBe(true);
   });
 
-  it.each([[[]], [["CMP-x"]], [["XYZ-1"]]])("rejects citedRuleIds %j", (citedRuleIds) => {
-    expect(DecisionResultSchema.safeParse({ ...decision, citedRuleIds }).success).toBe(false);
-  });
+  it.each([[[]], [["CMP-x"]], [["XYZ-1"]]])(
+    "rejects citedRuleIds %j",
+    (citedRuleIds) => {
+      expect(
+        DecisionResultSchema.safeParse({ ...decision, citedRuleIds }).success,
+      ).toBe(false);
+    },
+  );
 
   it("requires the AC-26 notice and at least one next step", () => {
-    expect(FirstMessageSchema.safeParse({ ...firstMessage, notice: "Inna treść." }).success).toBe(
-      false,
-    );
-    expect(FirstMessageSchema.safeParse({ ...firstMessage, nextSteps: [] }).success).toBe(false);
+    expect(
+      FirstMessageSchema.safeParse({ ...firstMessage, notice: "Inna treść." })
+        .success,
+    ).toBe(false);
+    expect(
+      FirstMessageSchema.safeParse({ ...firstMessage, nextSteps: [] }).success,
+    ).toBe(false);
   });
 });
 
@@ -199,7 +239,10 @@ describe("DecisionOutputSchema (LLM structured output, ADR-003 §4)", () => {
     signalReview: {
       photo_quality: { verdict: "agree", note: "" },
       observed_category: { verdict: "agree", note: "" },
-      visible_damage_or_use: { verdict: "disagree", note: "Brak śladów uderzenia." },
+      visible_damage_or_use: {
+        verdict: "disagree",
+        note: "Brak śladów uderzenia.",
+      },
       condition: { verdict: "not_assessable", note: "" },
     },
     greetingPl: "Dzień dobry,",
@@ -219,12 +262,33 @@ describe("DecisionOutputSchema (LLM structured output, ADR-003 §4)", () => {
     ["findings too short", { photoFindingsPl: "x".repeat(19) }],
     ["no next steps", { nextStepsPl: [] }],
     ["7 next steps", { nextStepsPl: Array(7).fill("krok") }],
-    ["6 rule ids", { citedRuleIds: ["CMP-1", "CMP-2", "CMP-3", "CMP-4", "CMP-5", "CMP-6"] }],
+    [
+      "6 rule ids",
+      { citedRuleIds: ["CMP-1", "CMP-2", "CMP-3", "CMP-4", "CMP-5", "CMP-6"] },
+    ],
     ["no evidence", { evidence: [] }],
-    ["evidence text too long", { evidence: [{ source: "photo", text: "x".repeat(201) }] }],
-    ["manual review without uncertainty", { outcome: "manual_review", uncertaintyPl: null }],
+    [
+      "evidence text too long",
+      { evidence: [{ source: "photo", text: "x".repeat(201) }] },
+    ],
+    [
+      "manual review without uncertainty",
+      { outcome: "manual_review", uncertaintyPl: null },
+    ],
   ])("rejects %s", (_name, patch) => {
-    expect(DecisionOutputSchema.safeParse({ ...output, ...patch }).success).toBe(false);
+    expect(
+      DecisionOutputSchema.safeParse({ ...output, ...patch }).success,
+    ).toBe(false);
+  });
+
+  it("the wire schema accepts every valid output and carries no length or refine rules", () => {
+    expect(DecisionOutputWireSchema.safeParse(output).success).toBe(true);
+    const json = JSON.stringify(z.toJSONSchema(DecisionOutputWireSchema));
+    expect(json).not.toMatch(/minLength|maxLength|minItems|maxItems|pattern/);
+    // Valid on the wire, rejected by the full schema -> corrective retry.
+    const tooShort = { ...output, justificationPl: "krótko" };
+    expect(DecisionOutputWireSchema.safeParse(tooShort).success).toBe(true);
+    expect(DecisionOutputSchema.safeParse(tooShort).success).toBe(false);
   });
 
   it("accepts manual review with an uncertainty text", () => {
@@ -249,16 +313,32 @@ describe("chat contracts", () => {
 
   it("DecisionHistoryEntrySchema accepts initial and chat entries", () => {
     expect(DecisionHistoryEntrySchema.safeParse(entry).success).toBe(true);
-    expect(DecisionHistoryEntrySchema.safeParse({ ...entry, source: "chat" }).success).toBe(true);
-    expect(DecisionHistoryEntrySchema.safeParse({ ...entry, source: "agent" }).success).toBe(false);
+    expect(
+      DecisionHistoryEntrySchema.safeParse({ ...entry, source: "chat" })
+        .success,
+    ).toBe(true);
+    expect(
+      DecisionHistoryEntrySchema.safeParse({ ...entry, source: "agent" })
+        .success,
+    ).toBe(false);
   });
 
   it("ChatCaseContextSchema caps decision history at 1..20", () => {
-    const ctx = { caseInput, screening, decisionHistory: [entry], firstMessage };
+    const ctx = {
+      caseInput,
+      screening,
+      decisionHistory: [entry],
+      firstMessage,
+    };
     expect(ChatCaseContextSchema.safeParse(ctx).success).toBe(true);
-    expect(ChatCaseContextSchema.safeParse({ ...ctx, decisionHistory: [] }).success).toBe(false);
     expect(
-      ChatCaseContextSchema.safeParse({ ...ctx, decisionHistory: Array(21).fill(entry) }).success,
+      ChatCaseContextSchema.safeParse({ ...ctx, decisionHistory: [] }).success,
+    ).toBe(false);
+    expect(
+      ChatCaseContextSchema.safeParse({
+        ...ctx,
+        decisionHistory: Array(21).fill(entry),
+      }).success,
     ).toBe(false);
   });
 
@@ -274,13 +354,22 @@ describe("chat contracts", () => {
   });
 
   it("ChangeDecisionInputSchema limits rule IDs and reason", () => {
-    const ok = { outcome: "rejected", citedRuleIds: ["RET-5", "RET-2"], reason: "Sprzęt spadł." };
+    const ok = {
+      outcome: "rejected",
+      citedRuleIds: ["RET-5", "RET-2"],
+      reason: "Sprzęt spadł.",
+    };
     expect(ChangeDecisionInputSchema.safeParse(ok).success).toBe(true);
-    expect(ChangeDecisionInputSchema.safeParse({ ...ok, reason: "" }).success).toBe(false);
-    expect(ChangeDecisionInputSchema.safeParse({ ...ok, reason: "x".repeat(401) }).success).toBe(
-      false,
-    );
-    expect(ChangeDecisionInputSchema.safeParse({ ...ok, citedRuleIds: [] }).success).toBe(false);
+    expect(
+      ChangeDecisionInputSchema.safeParse({ ...ok, reason: "" }).success,
+    ).toBe(false);
+    expect(
+      ChangeDecisionInputSchema.safeParse({ ...ok, reason: "x".repeat(401) })
+        .success,
+    ).toBe(false);
+    expect(
+      ChangeDecisionInputSchema.safeParse({ ...ok, citedRuleIds: [] }).success,
+    ).toBe(false);
   });
 
   it("ChangeDecisionResultSchema has accepted and refused variants", () => {
@@ -292,24 +381,36 @@ describe("chat contracts", () => {
       }).success,
     ).toBe(true);
     expect(
-      ChangeDecisionResultSchema.safeParse({ accepted: false, why: "outside_return_window" })
-        .success,
+      ChangeDecisionResultSchema.safeParse({
+        accepted: false,
+        why: "outside_return_window",
+      }).success,
     ).toBe(true);
-    expect(ChangeDecisionResultSchema.safeParse({ accepted: false, why: "because" }).success).toBe(
-      false,
-    );
+    expect(
+      ChangeDecisionResultSchema.safeParse({ accepted: false, why: "because" })
+        .success,
+    ).toBe(false);
   });
 });
 
 describe("HTTP contracts", () => {
   it("ScreeningRequestSchema and DecisionRequestSchema", () => {
-    expect(ScreeningRequestSchema.safeParse({ caseInput, caseImage }).success).toBe(true);
-    expect(DecisionRequestSchema.safeParse({ caseInput, caseImage, screening }).success).toBe(true);
-    expect(DecisionRequestSchema.safeParse({ caseInput, caseImage }).success).toBe(false);
+    expect(
+      ScreeningRequestSchema.safeParse({ caseInput, caseImage }).success,
+    ).toBe(true);
+    expect(
+      DecisionRequestSchema.safeParse({ caseInput, caseImage, screening })
+        .success,
+    ).toBe(true);
+    expect(
+      DecisionRequestSchema.safeParse({ caseInput, caseImage }).success,
+    ).toBe(false);
   });
 
   it("DecisionResponseSchema with optional llmFindings", () => {
-    expect(DecisionResponseSchema.safeParse({ decision, firstMessage }).success).toBe(true);
+    expect(
+      DecisionResponseSchema.safeParse({ decision, firstMessage }).success,
+    ).toBe(true);
     expect(
       DecisionResponseSchema.safeParse({
         decision,
@@ -325,10 +426,14 @@ describe("HTTP contracts", () => {
 
   it("ErrorResponseSchema accepts only known codes", () => {
     expect(
-      ErrorResponseSchema.safeParse({ error: { code: "llm_failed", retryable: true } }).success,
+      ErrorResponseSchema.safeParse({
+        error: { code: "llm_failed", retryable: true },
+      }).success,
     ).toBe(true);
     expect(
-      ErrorResponseSchema.safeParse({ error: { code: "boom", retryable: true } }).success,
+      ErrorResponseSchema.safeParse({
+        error: { code: "boom", retryable: true },
+      }).success,
     ).toBe(false);
   });
 });
