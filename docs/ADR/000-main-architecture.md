@@ -260,7 +260,7 @@ The root `.env.example` currently lists `OPENROUTER_API_KEY` and `LLM_MODEL`; th
 **Context:** Demo on course VMs.
 **Decision:** `npm run dev`, `npm run build` + `npm run start`; handlers declare `maxDuration` for future serverless use.
 **Rejected alternatives:** Docker, Vercel.
-**Consequences:** (+) No infra work. (-) No public URL.
+**Consequences:** (+) No infra work. (-) No public URL. (-) Server modules read prompts and policies from disk at runtime; `next.config.ts` includes the prompt files in the output trace and silences only Turbopack's "Dynamic filesystem access" trace-size warning for `src/server/**` (2026-11-26). A serverless deployment must revisit this.
 **Review trigger:** Demo outside the VM.
 
 ---
