@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://openrouter.ai/api/alpha/decisions",
+    "headers": {
+      "authorization": "[redacted]",
+      "content-type": "application/json",
+      "user-agent": "ai/7.0.183 ai-sdk/provider-utils/5.0.42 runtime/node.js/24",
+      "x-openrouter-title": "Hardware Service Decision Copilot"
+    },
+    "bodySha256": "5a4c559123c62b3a839984536d9816284a86cbc32fa7c14181b8463553dc0722"
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "WWW-Authenticate,PAYMENT-REQUIRED,Payment-Receipt,PAYMENT-RESPONSE,Location,X-Generation-Id,x-openrouter-error-origin,x-openrouter-error-tool,X-Provider-Name,request-id,x-openrouter-subscription-passthrough,anthropic-ratelimit-unified-status,Retry-After,cf-ray",
+      "alt-svc": "h3=\":443\"; ma=86400",
+      "cf-ray": "a609246d197d736b-WAW",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 13:12:01 GMT",
+      "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "server": "cloudflare",
+      "set-cookie": "__cf_bm=bZAdapKcpcuFf7FeJ7PamOOuhhy.mmhZSzpNU6zrS8M-1795698720.8178623-1.0.1.1-5zGI1E91W7Pon8f7IHIOvK9CMRsvLb4x_hPh3D4Pv8VkJ7V91b74GqAgDZ1uK.4OmALvV9IMqjiVw9CL4mjGYATB_I6t2vRyQfaLobsFeGYe7LQnczG6V9tuwVokn.d0; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=openrouter.ai; Expires=Thu, 26 Nov 2026 13:42:01 GMT",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-generation-id": "gen-dec-1795698720-P0pAhuDW5ibVnpfJHMW5",
+      "x-provider-name": "TypeSafe"
+    },
+    "body": "{\"model\":\"typesafe/jev-1.14-20261014\",\"answers\":{\"photo_quality\":{\"type\":\"choice\",\"choice\":\"ok\",\"probabilities\":{\"ok\":0.71,\"blurry\":0.01,\"too_dark\":0.01,\"device_not_fully_visible\":0.27,\"no_device\":0},\"confidence\":0.64},\"observed_category\":{\"type\":\"choice\",\"choice\":\"smartphone\",\"probabilities\":{\"laptop\":0,\"smartphone\":1,\"tablet\":0,\"monitor\":0,\"tv\":0,\"audio\":0,\"console\":0,\"other_electronics\":0,\"no_device\":0},\"confidence\":1},\"visible_damage_or_use\":{\"type\":\"noul\",\"noul\":0.72},\"condition\":{\"type\":\"score\",\"score\":1.94,\"legend\":{\"0\":\"Like new, no visible marks.\",\"1\":\"Minor marks visible only on close inspection.\",\"2\":\"Clear signs of use.\",\"3\":\"Damaged.\"},\"probabilities\":{\"0\":0.13,\"1\":0.17,\"2\":0.32,\"3\":0.38},\"confidence\":0}},\"usage\":{\"input_tokens\":1419,\"output_tokens\":186,\"cost\":0,\"is_byok\":true,\"cost_details\":{\"upstream_inference_cost\":0.000059598,\"upstream_inference_prompt_cost\":0.000059598,\"upstream_inference_completions_cost\":0}},\"id\":\"gen-dec-1795698720-P0pAhuDW5ibVnpfJHMW5\",\"provider\":\"TypeSafe\"}",
+    "chunks": [
+      "{\"model\":\"typesafe/jev-1.14-20261014\",\"answers\":{\"photo",
+      "_quality\":{\"type\":\"choice\",\"choice\":\"ok\",\"probabilities\":{\"ok\":0.71,\"blurry\":0.01,\"too_dark\":0.01,\"device_not_fully_visible\":0.27,\"no_device\":0},\"confidence\":0.64},\"observed_category\":{\"type\":\"choice\",\"choice\":\"smartphone\",\"probabilities\":{\"laptop\":0,\"smartphone\":1,\"tablet\":0,\"monitor\":0,\"tv\":0,\"audio\":0,\"console\":0,\"other_electronics\":0,\"no_device\":0},\"confidence\":1},\"visible_damage_or_use\":{\"type\":\"noul\",\"noul\":0.72},\"condition\":{\"type\":\"score\",\"score\":1.94,\"legend\":{\"0\":\"Like new, no visible marks.\",\"1\":\"Minor marks visible only on close inspection.\",\"2\":\"Clear signs of use.\",\"3\":\"Damaged.\"},\"probabilities\":{\"0\":0.13,\"1\":0.17,\"2\":0.32,\"3\":0.38},\"confidence\":0}},\"usage\":{\"input_tokens\":1419,\"output_tokens\":186,\"cost\":0,\"is_byok\":true,\"cost_details\":{\"upstream_inference_cost\":0.000059598,\"upstream_inference_prompt_cost\":0.000059598,\"upstream_inference_completions_cost\":0}},\"id\":\"gen-dec-1795698720-P0pAhuDW5ibVnpfJHMW5\",\"provider\":\"TypeSafe\"}"
+    ]
+  }
+}

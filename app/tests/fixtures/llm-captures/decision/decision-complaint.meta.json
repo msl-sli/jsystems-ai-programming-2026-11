@@ -1,0 +1,15 @@
+{
+  "endpoint": "chat/completions",
+  "modelId": "openai/gpt-6-luna",
+  "promptVersion": "2026-11-26.1",
+  "requestSummary": "Escalated complaint (R10), laptop-1.png bytes (JPEG), purchase today-10, synthetic description of screen lines; chat/completions, temperature 0, response_format json_schema (DecisionOutputWireSchema), provider data_collection deny + require_parameters; system = decision prompt + guardrails + full policy; user = facts block + form block (description inside customer_data) + screening signals + image/jpeg",
+  "scenario": "decision-complaint",
+  "capturedAt": "2026-11-26T13:15:11.335Z",
+  "packages": {
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  },
+  "providerHeaders": {
+    "x-openrouter-release": "api;6974da3e-2d30-4253-9b9d-763143ceef81"
+  }
+}

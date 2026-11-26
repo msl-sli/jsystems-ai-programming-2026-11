@@ -1,0 +1,15 @@
+{
+  "endpoint": "chat/completions",
+  "modelId": "openai/gpt-6-luna",
+  "promptVersion": "2026-11-26.1",
+  "requestSummary": "Same case as decision-return-description, but code validates against rule IDs [\"RET-7\"] only to force a real invalid first answer; chat/completions, temperature 0, response_format json_schema (DecisionOutputWireSchema), provider data_collection deny + require_parameters; system = decision prompt + guardrails + full policy; user = facts block + form block (description inside customer_data) + screening signals + image/jpeg",
+  "scenario": "decision-return-invalid-first",
+  "capturedAt": "2026-11-26T13:16:07.909Z",
+  "packages": {
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  },
+  "providerHeaders": {
+    "x-openrouter-release": "api;6974da3e-2d30-4253-9b9d-763143ceef81"
+  }
+}

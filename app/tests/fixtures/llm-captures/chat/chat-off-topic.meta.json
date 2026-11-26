@@ -1,0 +1,15 @@
+{
+  "endpoint": "chat/completions",
+  "modelId": "openai/gpt-6-luna",
+  "promptVersion": "2026-11-26.1",
+  "requestSummary": "Streamed chat (streamChat): system prompt = guardrails + chat.complaint.md + complaint policy + facts (daysSincePurchase 10) + synthetic case data; canonical first message as first assistant message; one user message; tool changeDecision; temperature 0.3; data_collection deny; no image. off-topic question; verbatim off-topic sentence expected (AC-35)",
+  "scenario": "chat-off-topic",
+  "capturedAt": "2026-11-26T13:16:21.958Z",
+  "packages": {
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  },
+  "providerHeaders": {
+    "x-openrouter-release": "api;6974da3e-2d30-4253-9b9d-763143ceef81"
+  }
+}

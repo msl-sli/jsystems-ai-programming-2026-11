@@ -53,11 +53,15 @@ Re-record captures when a prompt version, a model ID or an AI package version (`
 
 Filled in by the orchestrator.
 
-- Key check (`GET /api/v1/key`): _pending_
-- Decisions model listing (`typesafe/jev-1.14`, image input; `GET /api/v1/models?output_modalities=decisions&input_modalities=image`): _pending_
-- First real screening capture accepted with the normalized wire format and `data_collection: deny` (ADR-003 TAC-003-07): _pending_
-- LLM capabilities (`openai/gpt-6-luna`: image input, `structured_outputs`, `tools`): _pending_
+- Key check (`GET /api/v1/key`): HTTP 200, run by the reviewer on 2026-11-26 (plan T00). The key is a test key, stored only in the gitignored `app/.env.local`.
+- Decisions model listing (`typesafe/jev-1.14`, image input; `GET /api/v1/models?output_modalities=decisions&input_modalities=image`): not obtainable from the agent sandbox (the fetch tool returned an unrelated proxy listing, discarded). Superseded by the real call below.
+- First real screening capture accepted with the normalized wire format and `data_collection: deny` (ADR-003 TAC-003-07): **yes**, 2026-11-26, `screening/screening-phone-1-return.json`: HTTP 200, response `model: typesafe/jev-1.14-20261014`, `provider: TypeSafe`, answer types `choice`/`noul`/`score`. With a BYOK key `usage.cost` is 0 and the upstream cost is in `usage.cost_details.upstream_inference_cost`.
+- LLM capabilities (`openai/gpt-6-luna`), verified by real calls on 2026-11-26 with `data_collection: deny` and `require_parameters: true`: plain text 200 (Azure), `response_format: json_schema` 200 (Azure), image input 200 (Azure), `response_format: json_object` 200 (Amazon Bedrock); **`temperature` → 404 "No endpoints found that can handle the requested parameters" (failed step "Filter by Parameters")**, so the app sends no `temperature` (ADR-003 §3.4). Tools: real chat captures contain a `changeDecision` tool call (Azure).
 
 ## Captures
 
-_None recorded yet._
+Recorded 2026-11-26 with `npm run capture:llm` (ai 7.0.183, @openrouter/ai-sdk-provider 3.1.0, prompt version 2026-11-26.1):
+
+- `screening/`: 5 photos × 2 case types (HTTP 200, `typesafe/jev-1.14`), `screening-error-invalid-key` (real 401), `screening-error-unknown-model` (real 400). No refusal could be provoked: the refusal path is a coverage gap (plan §7a.4).
+- `decision/`: escalated return with description (R6), complaint (R10), llm-always R1 explain-only, and `decision-return-invalid-first` + `-2` (two real answers that fail validation against a deliberately narrowed rule-ID set → corrective retry, then `llm_failed`).
+- `chat/` (raw SSE): purchase-date question, new fact → `changeDecision` tool call + follow-up step (`-2`), pressure, off-topic.

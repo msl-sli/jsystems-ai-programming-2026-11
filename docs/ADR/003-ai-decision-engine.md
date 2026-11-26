@@ -120,7 +120,7 @@ Consequence (accepted by the user on 2026-11-25): in `hybrid` mode, LLM-free dec
 
 ### 3.4 Escalated decision service (`server/ai/decision`)
 
-Called when the route is `llm`. One `AbortSignal` of 50 s covers the whole stage — the first call, transport retries and the corrective retry; when it fires the stage fails with `llm_timeout`. One `generateText` call with `Output.object({ schema: DecisionOutputSchema })`, model `openrouter(LLM_MODEL)`, temperature 0, `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
+Called when the route is `llm`. One `AbortSignal` of 50 s covers the whole stage — the first call, transport retries and the corrective retry; when it fires the stage fails with `llm_timeout`. One `generateText` call with `Output.object({ schema: DecisionOutputWireSchema })` (validated afterwards with `DecisionOutputSchema`), model `openrouter(LLM_MODEL)`, **no `temperature`** (revision 2026-11-26: with `require_parameters: true` a `temperature` parameter left no `openai/gpt-6-luna` endpoint — real HTTP 404 "Filter by Parameters"; `json_schema` and image input are supported), `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
 
 Message content: system prompt `decision.<return|complaint>.md` (+ shared `_guardrails.md`) with the full policy text; user content with (1) deterministic facts block, (2) form data block (description quoted as customer data), (3) screening signals block — every answer with its value and certainty, the list of uncertain areas to verify first, and an instruction that signals are hints from an automated pre-check that must be verified against the photo, (4) the image as a file part (`image/jpeg`).
 
@@ -141,7 +141,7 @@ Templates copy policy facts (addresses, e-mail, deadlines) into Polish text. A u
 
 ### 3.6 Chat service (`server/ai/chat`)
 
-`streamText` with `openrouter(LLM_MODEL)`, temperature 0.3, `stopWhen` step count 3, abort after 60 s or on client disconnect, `data_collection: deny`. System prompt `chat.<return|complaint>.md` + guardrails + policy + facts (recomputed per request) + case data + screening signals (values and certainty) + LLM findings (if the case was escalated) + current decision + decision path. The canonical text of the first message is inserted as the first assistant message. The chat never receives the image (ADR-002).
+`streamText` with `openrouter(LLM_MODEL)`, no `temperature` (unsupported by the model's endpoints, see §3.4), `stopWhen` step count 3, abort after 60 s or on client disconnect, `data_collection: deny`. System prompt `chat.<return|complaint>.md` + guardrails + policy + facts (recomputed per request) + case data + screening signals (values and certainty) + LLM findings (if the case was escalated) + current decision + decision path. The canonical text of the first message is inserted as the first assistant message. The chat never receives the image (ADR-002).
 
 Tool `changeDecision` (unchanged): input `{ outcome, citedRuleIds, reason }`; execution validates with `resolveOutcome` using recomputed facts; accepted changes emit a `data-decision` part and return `{ accepted: true, category, label }`; refused proposals return `{ accepted: false, why }`. The model never writes "Zmiana decyzji" itself (ADR-001 renders the header).
 

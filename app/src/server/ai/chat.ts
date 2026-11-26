@@ -32,7 +32,7 @@ import { DEFAULT_PROMPTS_DIR, loadPromptFile } from "./prompt-files";
 /** Version of `chat.return.md` / `chat.complaint.md`; recorded in capture metadata. */
 export const CHAT_PROMPT_VERSION = "2026-11-26.1";
 
-export const CHAT_TEMPERATURE = 0.3;
+// No `temperature`: openai/gpt-6-luna endpoints do not support it (ADR-003 §3.4, §3.6).
 export const CHAT_MAX_STEPS = 3;
 export const CHAT_TIMEOUT_MS = 60_000;
 /** The only error text the client ever sees (ADR-002 `chat_failed`). */
@@ -254,7 +254,6 @@ export function streamChat(
         messages: modelMessages,
         tools,
         stopWhen: isStepCount(CHAT_MAX_STEPS),
-        temperature: CHAT_TEMPERATURE,
         maxRetries: 1, // TAC-003-03
         abortSignal,
         providerOptions: OPENROUTER_PRIVACY_OPTIONS,

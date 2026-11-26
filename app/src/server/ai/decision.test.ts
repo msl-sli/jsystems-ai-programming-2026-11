@@ -311,12 +311,13 @@ describe("decision wire request (transport rejected, no response involved)", () 
     return seen;
   }
 
-  it("posts to chat completions with the model id and temperature 0", async () => {
+  it("posts to chat completions with the model id and no temperature", async () => {
     const seen = await capture();
     expect(seen.length).toBeGreaterThanOrEqual(1);
     expect(new URL(seen[0]!.url).pathname).toBe("/api/v1/chat/completions");
     expect(seen[0]!.body.model).toBe("vendor/llm-test");
-    expect(seen[0]!.body.temperature).toBe(0);
+    // With require_parameters, any `temperature` leaves no gpt-6-luna endpoint (real 404, 2026-11-26).
+    expect(seen[0]!.body).not.toHaveProperty("temperature");
   });
 
   it("requests a json_schema response format with the wire schema only", async () => {

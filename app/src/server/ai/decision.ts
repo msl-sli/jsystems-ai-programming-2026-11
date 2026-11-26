@@ -311,7 +311,6 @@ export async function decideWithLlm(
         instructions: system,
         messages,
         output: Output.object({ schema: DecisionOutputWireSchema }),
-        temperature: 0,
         maxRetries: 1,
         abortSignal: signal,
         providerOptions: OPENROUTER_STRUCTURED_OPTIONS,

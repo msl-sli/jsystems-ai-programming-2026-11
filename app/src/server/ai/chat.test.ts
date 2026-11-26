@@ -516,7 +516,7 @@ describe("streamChat request shape and error masking", () => {
       "vendor/chat-test",
     );
 
-  it("sends a streaming request with the tool, privacy routing, temperature 0.3 and no image", async () => {
+  it("sends a streaming request with the tool, privacy routing, no temperature and no image", async () => {
     const recorded: Recorded[] = [];
     const controller = new AbortController();
     const response = streamChat(
@@ -536,7 +536,8 @@ describe("streamChat request shape and error masking", () => {
     const body = recorded[0]!.body;
     expect(body.model).toBe("vendor/chat-test");
     expect(body.stream).toBe(true);
-    expect(body.temperature).toBe(0.3);
+    // openai/gpt-6-luna endpoints reject `temperature` (real routing 404 on 2026-11-26, ADR-003 §3.4).
+    expect(body).not.toHaveProperty("temperature");
     expect(JSON.stringify(body.tools)).toContain("changeDecision");
     expect(
       (body.provider as { data_collection?: string }).data_collection,
