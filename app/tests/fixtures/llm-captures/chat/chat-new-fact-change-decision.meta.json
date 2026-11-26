@@ -1,15 +1,15 @@
 {
   "endpoint": "chat/completions",
   "modelId": "openai/gpt-6-luna",
-  "promptVersion": "2026-11-26.1",
+  "promptVersion": "2026-11-26.2",
   "requestSummary": "Streamed chat (streamChat): system prompt = guardrails + chat.complaint.md + complaint policy + facts (daysSincePurchase 10) + synthetic case data; canonical first message as first assistant message; one user message; tool changeDecision; temperature 0.3; data_collection deny; no image. new fact (drop damage) that should trigger a changeDecision call (AC-33)",
   "scenario": "chat-new-fact-change-decision",
-  "capturedAt": "2026-11-26T13:16:11.587Z",
+  "capturedAt": "2026-11-26T15:39:32.479Z",
   "packages": {
     "ai": "7.0.183",
     "@openrouter/ai-sdk-provider": "3.1.0"
   },
   "providerHeaders": {
-    "x-openrouter-release": "api;6974da3e-2d30-4253-9b9d-763143ceef81"
+    "x-openrouter-release": "api;eae89225-807b-4dd8-84a6-0827d74c5cfc"
   }
 }

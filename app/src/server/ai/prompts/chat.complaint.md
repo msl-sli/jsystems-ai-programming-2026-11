@@ -1,4 +1,4 @@
-prompt-version: 2026-11-26.1
+prompt-version: 2026-11-26.2
 
 # Chat assistant: complaint case
 

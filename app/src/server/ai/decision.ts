@@ -31,6 +31,7 @@ import { buildFirstMessage, ensurePhotoTips } from "@/domain/first-message";
 import { OPENROUTER_STRUCTURED_OPTIONS, type getChatModel } from "../llm";
 import type { Policies } from "../policies";
 import { LlmFailedError, LlmTimeoutError, toLlmError } from "./errors";
+import { quoteCustomerText } from "./customer-data";
 import { loadPromptFile } from "./prompt-files";
 import { buildTelemetry, type OnTelemetry } from "./telemetry";
 
@@ -62,13 +63,6 @@ export type DecisionUserContent = (
 export interface DecisionMessages {
   system: string;
   content: DecisionUserContent;
-}
-
-const CUSTOMER_TAG = /<\/?\s*customer_data\s*>/gi;
-
-/** Customer text may not close or reopen the delimiter. */
-function quoteCustomerText(text: string): string {
-  return text.replace(CUSTOMER_TAG, "[removed]");
 }
 
 const OUTCOME_OF: Record<DecisionCategory, Outcome> = {
@@ -280,6 +274,16 @@ function manualReviewKindOf(
   return photoProblem ? "better_photo" : "contact_support";
 }
 
+/** For manual_review the model's statement of what could not be assessed becomes part of the justification. */
+export function justificationWithUncertainty(
+  category: DecisionCategory,
+  justification: string,
+  uncertaintyPl: string | null,
+): string {
+  if (category !== "manual_review" || !uncertaintyPl) return justification;
+  return `${justification} ${uncertaintyPl}`;
+}
+
 export async function decideWithLlm(
   route: LlmRoute,
   caseInput: CaseInput,
@@ -368,11 +372,16 @@ export async function decideWithLlm(
     manualReviewKind === "better_photo"
       ? ensurePhotoTips(output.nextStepsPl)
       : output.nextStepsPl;
+  const justification = justificationWithUncertainty(
+    resolved.category,
+    output.justificationPl,
+    output.uncertaintyPl,
+  );
   const decision: DecisionResult = {
     category: resolved.category,
     label: resolved.label,
     citedRuleIds: resolved.citedRuleIds,
-    justification: output.justificationPl,
+    justification,
     photoFindingsSummary: output.photoFindingsPl,
     nextSteps,
     manualReviewKind,
@@ -385,7 +394,7 @@ export async function decideWithLlm(
     firstMessage: buildFirstMessage({
       greeting: output.greetingPl,
       decisionLabel: resolved.label,
-      justification: output.justificationPl,
+      justification,
       photoFindings: output.photoFindingsPl,
       nextSteps,
     }),

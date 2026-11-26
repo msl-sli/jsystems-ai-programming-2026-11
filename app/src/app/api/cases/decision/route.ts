@@ -78,6 +78,17 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
       }
 
       const body = DecisionResponseSchema.parse(result);
+      // Verdicts only (ADR-003 section 3.4): the notes are model text about the customer's photo.
+      const signalReview = body.llmFindings
+        ? Object.fromEntries(
+            Object.entries(
+              body.llmFindings.signalReview as Record<
+                string,
+                { verdict: string }
+              >,
+            ).map(([id, item]) => [id, item.verdict]),
+          )
+        : undefined;
       return {
         response: Response.json(body),
         log: {
@@ -85,6 +96,7 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
           routeRule: body.decision.routeRule,
           mode: body.decision.mode,
           ...(models ? { models } : {}),
+          ...(signalReview ? { signalReview } : {}),
           ...(calls.length ? { calls, costCredits: totalCost(calls) } : {}),
         },
       };

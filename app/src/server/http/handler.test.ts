@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ErrorResponseSchema } from "@/domain/contracts";
 import { LlmFailedError, LlmTimeoutError } from "../ai/errors";
@@ -25,6 +26,13 @@ const deps: ApiDeps = {
 };
 
 afterEach(() => vi.restoreAllMocks());
+
+describe("mapError ZodError", () => {
+  it("maps a response-schema ZodError to 502 llm_failed", () => {
+    const error = z.string().safeParse(1).error;
+    expect(mapError(error)).toEqual({ status: 502, code: "llm_failed" });
+  });
+});
 
 describe("mapError", () => {
   it("maps each known error type to its status and code", () => {

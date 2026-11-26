@@ -355,7 +355,16 @@ export async function attachChatTurns(
   });
 }
 
-/** True when the date appears in any common form (dd.mm.yyyy, d.m.yyyy, ISO). */
+/** Polish month names in the genitive, as used in dates ("23 listopada 2026"). */
+const MONTHS_GENITIVE = [
+  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+  "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+];
+
+/**
+ * True when exactly this date appears in a common form: dd.mm.yyyy, d.m.yyyy, ISO, or Polish
+ * long form "23 listopada 2026" (the real model answered in that form on 2026-11-26).
+ */
 export function mentionsDate(text: string, d: Date): boolean {
   const y = d.getFullYear();
   const m = d.getMonth() + 1;
@@ -366,6 +375,8 @@ export function mentionsDate(text: string, d: Date): boolean {
     `${day}.${p(m)}.${y}`,
     `${day}.${m}.${y}`,
     `${y}-${p(m)}-${p(day)}`,
+    `${day} ${MONTHS_GENITIVE[m - 1]} ${y}`,
+    `${p(day)} ${MONTHS_GENITIVE[m - 1]} ${y}`,
   ];
   return forms.some((f) => text.includes(f));
 }

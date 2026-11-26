@@ -16,6 +16,7 @@ import {
   buildDecisionMessages,
   decideWithLlm,
   DECISION_PROMPT_VERSIONS,
+  justificationWithUncertainty,
 } from "./decision";
 
 const policies = loadPolicies(path.resolve(process.cwd(), "../docs/policies"));
@@ -419,5 +420,29 @@ describe("decideWithLlm error mapping (real transport rejections)", () => {
     const failure = await run(fetchImpl).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(LlmFailedError);
     expect((failure as LlmFailedError).message.length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("justificationWithUncertainty (pure mapping input, not a provider capture)", () => {
+  const justification = "Zdjęcie nie pozwala ocenić stanu obudowy urządzenia.";
+  const uncertainty = "Nie widać tylnej części obudowy.";
+
+  it("appends uncertaintyPl for manual_review", () => {
+    const text = justificationWithUncertainty(
+      "manual_review",
+      justification,
+      uncertainty,
+    );
+    expect(text.startsWith(justification)).toBe(true);
+    expect(text).toContain(uncertainty);
+  });
+
+  it.each([
+    ["manual_review", null],
+    ["return_rejected", uncertainty],
+  ] as const)("leaves the justification alone for %s / %s", (category, u) => {
+    expect(justificationWithUncertainty(category, justification, u)).toBe(
+      justification,
+    );
   });
 });

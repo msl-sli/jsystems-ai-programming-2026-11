@@ -487,54 +487,84 @@ export async function screenCase(
 
   const metadata = result.providerMetadata;
   report(metadata, result.response?.body);
-  const build = <K extends ScreeningQuestionId>(
-    id: K,
-    value: Answer<K>["value"],
-    kind: "choice" | "boolean" | "score",
-    probabilities: Record<string, number>,
-  ): Answer<K> =>
-    buildAnswer<K>(
-      kind,
-      value,
-      probabilities,
-      options.threshold,
-      providerConfidenceOf(metadata, id),
-    );
-
-  const { answers } = result;
-  const yes = round2(answers.visible_damage_or_use.probability);
-  const bucketProbabilities = answers.condition.probabilities ?? {};
-  const level = Number(
-    argmax(bucketProbabilities) ?? Math.round(answers.condition.score),
-  );
-
   return finish(
-    {
-      photo_quality: build(
-        "photo_quality",
-        answers.photo_quality.choice,
-        "choice",
-        answers.photo_quality.probabilities ?? {},
-      ),
-      observed_category: build(
-        "observed_category",
-        answers.observed_category.choice,
-        "choice",
-        answers.observed_category.probabilities ?? {},
-      ),
-      visible_damage_or_use: build(
-        "visible_damage_or_use",
-        yes >= 0.5,
-        "boolean",
-        { true: yes, false: round2(1 - yes) },
-      ),
-      condition: build(
-        "condition",
-        level as Answer<"condition">["value"],
-        "score",
-        bucketProbabilities,
-      ),
-    },
+    foldNormalAnswers(result.answers, metadata, options.threshold),
     costOf(metadata, result.response?.body),
   );
+}
+
+const NormalProbabilities = z.record(z.string(), z.number().min(0).max(1));
+const NormalChoice = z.object({
+  choice: z.string(),
+  probabilities: NormalProbabilities.optional(),
+});
+const NormalDamage = z.object({ probability: z.number().min(0).max(1) });
+const NormalScore = z.object({
+  score: z.number().finite(),
+  probabilities: NormalProbabilities.optional(),
+});
+
+/**
+ * Maps the SDK's answers of a normal (non-refusal) response. Anything unexpected (unknown choice, probability
+ * outside 0..1, score without a valid level, missing question) fails closed as a refused answer, so the result always
+ * satisfies the response schema.
+ */
+export function foldNormalAnswers(
+  raw: unknown,
+  metadata: unknown,
+  threshold: number,
+): ScreeningAnswers {
+  const answers = (raw ?? {}) as Record<string, unknown>;
+  const choice = <K extends "photo_quality" | "observed_category">(
+    id: K,
+    allowed: readonly string[],
+  ): Answer<K> => {
+    const parsed = NormalChoice.safeParse(answers[id]);
+    if (!parsed.success || !allowed.includes(parsed.data.choice))
+      return refusedAnswer() as Answer<K>;
+    return buildAnswer<K>(
+      "choice",
+      parsed.data.choice as Answer<K>["value"],
+      parsed.data.probabilities ?? {},
+      threshold,
+      providerConfidenceOf(metadata, id),
+    );
+  };
+
+  const damage = NormalDamage.safeParse(answers.visible_damage_or_use);
+  const yes = damage.success ? round2(damage.data.probability) : 0;
+  const score = NormalScore.safeParse(answers.condition);
+  const buckets = score.success ? (score.data.probabilities ?? {}) : {};
+  const level = score.success
+    ? Number(argmax(buckets) ?? Math.round(score.data.score))
+    : Number.NaN;
+  const bucketsValid = Object.keys(buckets).every((key) =>
+    (CONDITION_LEVELS as readonly number[]).includes(Number(key)),
+  );
+
+  return {
+    photo_quality: choice("photo_quality", PHOTO_QUALITY_VALUES),
+    observed_category: choice("observed_category", OBSERVED_CATEGORY_VALUES),
+    visible_damage_or_use: damage.success
+      ? buildAnswer<"visible_damage_or_use">(
+          "boolean",
+          yes >= 0.5,
+          { true: yes, false: round2(1 - yes) },
+          threshold,
+          providerConfidenceOf(metadata, "visible_damage_or_use"),
+        )
+      : refusedAnswer(),
+    condition:
+      score.success &&
+      bucketsValid &&
+      (CONDITION_LEVELS as readonly number[]).includes(level)
+        ? buildAnswer<"condition">(
+            "score",
+            level as Answer<"condition">["value"],
+            buckets,
+            threshold,
+            providerConfidenceOf(metadata, "condition"),
+          )
+        : refusedAnswer(),
+  };
 }

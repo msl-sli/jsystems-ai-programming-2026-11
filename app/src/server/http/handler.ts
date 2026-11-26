@@ -1,6 +1,6 @@
 import "server-only";
 import { addDays, format, parseISO } from "date-fns";
-import type { ZodType } from "zod";
+import { ZodError, type ZodType } from "zod";
 import { todayInTimeZone } from "@/domain/dates";
 import type { ErrorCode } from "@/domain/contracts";
 import { LlmFailedError, LlmTimeoutError } from "../ai/errors";
@@ -36,6 +36,9 @@ export function mapError(error: unknown): { status: number; code: ErrorCode } {
     return { status: error.status, code: error.code };
   if (error instanceof LlmFailedError)
     return { status: 502, code: "llm_failed" };
+  // A request body failure is mapped to HttpError(400) at the boundary, so a ZodError reaching here comes from
+  // validating the model's response schema: an upstream failure.
+  if (error instanceof ZodError) return { status: 502, code: "llm_failed" };
   if (error instanceof LlmTimeoutError)
     return { status: 504, code: "llm_timeout" };
   if (error instanceof ServerConfigError)

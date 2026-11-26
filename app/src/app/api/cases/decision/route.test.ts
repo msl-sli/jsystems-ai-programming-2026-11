@@ -525,6 +525,27 @@ describe("POST /api/cases/decision", () => {
       expect(typeof parsed.costCredits).toBe("number");
     });
 
+    it("logs only per-question signalReview verdicts, never notes", async () => {
+      const { response } = await run(returnWithDescription, [
+        "decision-return-description",
+      ]);
+      expect(response.status).toBe(200);
+      const body = DecisionResponseSchema.parse(await response.json());
+      const review = body.llmFindings!.signalReview as Record<
+        string,
+        { verdict: string; note: string }
+      >;
+      const text = info.mock.calls.at(-1)?.[0] as string;
+      const logged = JSON.parse(text) as { signalReview: unknown };
+      expect(logged.signalReview).toEqual(
+        Object.fromEntries(
+          Object.entries(review).map(([id, item]) => [id, item.verdict]),
+        ),
+      );
+      for (const item of Object.values(review))
+        expect(text).not.toContain(item.note);
+    });
+
     it("502 llm_failed after the corrective retry (two outbound requests)", async () => {
       const { response, replay } = await run(
         returnWithDescription,
