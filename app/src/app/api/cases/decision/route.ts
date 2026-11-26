@@ -69,7 +69,7 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
           policies,
           today,
           mode: env.decisionMode,
-          signal: timeoutSignal(request, TIMEOUT_MS),
+          signal: timeoutSignal(request, deps.timeoutMs ?? TIMEOUT_MS),
         });
         models = { chat: env.llmModel };
       }

@@ -1,7 +1,17 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ErrorResponseSchema } from "@/domain/contracts";
+import {
+  ErrorResponseSchema,
+  ScreeningResponseSchema,
+} from "@/domain/contracts";
+import { createLlmProvider } from "@/server/llm";
+import { createReplayFetch } from "@/test/replay-fetch";
+import {
+  SCREENING_PHOTOS,
+  loadScreeningCaseImage,
+  screeningCaseInput,
+} from "../../../../../scripts/capture-scenarios";
 import { ServerConfigError, loadServerEnv } from "@/server/env";
 import type { ApiDeps } from "@/server/http/handler";
 import { createScreeningHandler, maxDuration } from "./route";
@@ -297,15 +307,126 @@ describe("POST /api/cases/screening", () => {
     expect(text).not.toContain(JPEG.slice(0, 40));
   });
 
-  it.todo("200 { screening } for a valid case, from real captures");
-  it.todo(
-    "200 with refused answers when the provider refuses, from real captures (coverage gap if not provokable)",
-  );
-  it.todo(
-    "502 llm_failed for a real captured 401 (invalid key) and unknown-model 404, from real captures",
-  );
-  it.todo(
-    "504 llm_timeout for a delayed replay of a real success capture, from real captures",
-  );
-  it.todo("a client abort maps to llm_timeout, from real captures");
+  describe("from real captures (replayed OpenRouter responses)", () => {
+    const CAPTURES = path.resolve(
+      process.cwd(),
+      "tests/fixtures/llm-captures/screening",
+    );
+    const capturePath = (name: string) => path.join(CAPTURES, `${name}.json`);
+    const capturedAt = (name: string) =>
+      new Date(
+        JSON.parse(
+          readFileSync(
+            capturePath(name).replace(/\.json$/, ".meta.json"),
+            "utf8",
+          ),
+        ).capturedAt,
+      );
+    const replayEnv = (decisionsModel = "typesafe/jev-1.14") =>
+      loadServerEnv({
+        OPENROUTER_API_KEY: "unused",
+        LLM_MODEL: "openai/gpt-6-luna",
+        DECISIONS_MODEL: decisionsModel,
+      });
+    const phone1 = SCREENING_PHOTOS[0];
+
+    async function run(
+      name: string,
+      options: {
+        delayMs?: number;
+        timeoutMs?: number;
+        decisionsModel?: string;
+        signal?: AbortSignal;
+        abortAfterMs?: number;
+      } = {},
+    ) {
+      const replay = createReplayFetch({
+        captures: [capturePath(name)],
+        delayMs: options.delayMs ?? 0,
+      });
+      const handler = createScreeningHandler({
+        getEnv: () => replayEnv(options.decisionsModel),
+        createProvider: (e) =>
+          createLlmProvider({ apiKey: e.openrouterApiKey, fetch: replay }),
+        now: () => capturedAt(name),
+        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      });
+      const controller = new AbortController();
+      const request = new Request("http://localhost/api/cases/screening", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          caseInput: screeningCaseInput(phone1, "return"),
+          caseImage: await loadScreeningCaseImage(phone1),
+        }),
+        signal: controller.signal,
+      });
+      const pending = handler(request);
+      if (options.abortAfterMs !== undefined) {
+        setTimeout(() => controller.abort(), options.abortAfterMs);
+      }
+      return { response: await pending, replay };
+    }
+
+    it("200 { screening } for a real success capture", async () => {
+      const { response, replay } = await run("screening-phone-1-return");
+      expect(response.status).toBe(200);
+      const parsed = ScreeningResponseSchema.parse(await response.json());
+      expect(Object.keys(parsed.screening.answers).sort()).toEqual([
+        "condition",
+        "observed_category",
+        "photo_quality",
+        "visible_damage_or_use",
+      ]);
+      replay.assertAllConsumed();
+      expect(replay.calls).toBe(1);
+    });
+
+    it("502 llm_failed (retryable, no provider text) for the real 401", async () => {
+      const { response, replay } = await run("screening-error-invalid-key");
+      await expectError(response, 502, "llm_failed");
+      replay.assertAllConsumed();
+    });
+
+    it("502 llm_failed for the real 400 unknown-model response", async () => {
+      const { response, replay } = await run("screening-error-unknown-model", {
+        decisionsModel: "openai/does-not-exist-hsdc",
+      });
+      await expectError(response, 502, "llm_failed");
+      replay.assertAllConsumed();
+    });
+
+    it("the 502 envelope marks the error retryable and leaks no provider text", async () => {
+      const { response } = await run("screening-error-invalid-key");
+      const text = JSON.stringify(await response.clone().json());
+      const providerBody = JSON.parse(
+        readFileSync(capturePath("screening-error-invalid-key"), "utf8"),
+      ).response.body as string;
+      expect(
+        ErrorResponseSchema.parse(await response.json()).error.retryable,
+      ).toBe(true);
+      expect(text).not.toContain(providerBody.slice(0, 40));
+      expect(text.toLowerCase()).not.toContain("openrouter");
+    });
+
+    it("504 llm_timeout for a delayed replay with a small timeout", async () => {
+      const { response } = await run("screening-phone-1-return", {
+        delayMs: 2_000,
+        timeoutMs: 50,
+      });
+      await expectError(response, 504, "llm_timeout");
+    });
+
+    it("a client abort maps to llm_timeout", async () => {
+      const { response } = await run("screening-phone-1-return", {
+        delayMs: 2_000,
+        abortAfterMs: 20,
+      });
+      await expectError(response, 504, "llm_timeout");
+    });
+
+    it.todo(
+      "200 with refused answers when the provider refuses (coverage gap: no refusal could be provoked, plan 7a.4)",
+    );
+  });
 });

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AUTOMATED_DECISION_NOTICE,
@@ -5,7 +7,14 @@ import {
   type ChatCaseContext,
   type ScreeningResult,
 } from "@/domain/contracts";
+import { todayInTimeZone } from "@/domain/dates";
 import { loadServerEnv } from "@/server/env";
+import { createLlmProvider } from "@/server/llm";
+import { createReplayFetch } from "@/test/replay-fetch";
+import {
+  CHAT_SCENARIOS,
+  complaintContext,
+} from "../../../../scripts/capture-scenarios.chat";
 import type { ApiDeps } from "@/server/http/handler";
 import { createChatHandler, maxDuration } from "./route";
 
@@ -293,14 +302,131 @@ describe("POST /api/chat", () => {
     expect(text).not.toContain("ZZ-CHAT-TEXT");
   });
 
-  it.todo("streams text parts for a valid request, from real captures");
-  it.todo(
-    "emits data-decision before the text only when changeDecision is accepted, from real captures",
-  );
-  it.todo(
-    "masks a provider failure during streaming as chat_failed, from real captures",
-  );
-  it.todo(
-    "aborts the model call within 1 s after client disconnect (TAC-002-05), from real captures",
-  );
+  describe("from real captures (replayed OpenRouter SSE)", () => {
+    const CAPTURES = path.resolve(
+      process.cwd(),
+      "tests/fixtures/llm-captures/chat",
+    );
+    const capturePath = (name: string) => path.join(CAPTURES, `${name}.json`);
+    const capturedAt = (name: string) =>
+      new Date(
+        JSON.parse(
+          readFileSync(
+            capturePath(name).replace(/\.json$/, ".meta.json"),
+            "utf8",
+          ),
+        ).capturedAt,
+      );
+    const replayEnv = loadServerEnv({
+      OPENROUTER_API_KEY: "unused",
+      LLM_MODEL: "openai/gpt-6-luna",
+      DECISIONS_MODEL: "typesafe/jev-1.14",
+    });
+
+    function setup(
+      name: string,
+      files: string[],
+      options: { delayMs?: number; signal?: AbortSignal } = {},
+    ) {
+      const def = CHAT_SCENARIOS.find((d) => d.name === name)!;
+      const at = capturedAt(name);
+      const replay = createReplayFetch({
+        captures: files.map(capturePath),
+        delayMs: options.delayMs ?? 0,
+      });
+      // Observes the signal the model call carries; delegates everything to the replay.
+      const signals: AbortSignal[] = [];
+      const observing = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.signal) signals.push(init.signal);
+        return replay(input, init);
+      }) as typeof fetch;
+      const handler = createChatHandler({
+        getEnv: () => replayEnv,
+        createProvider: (e) =>
+          createLlmProvider({ apiKey: e.openrouterApiKey, fetch: observing }),
+        now: () => at,
+      });
+      const request = new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          caseContext: complaintContext(
+            replayEnv,
+            todayInTimeZone(replayEnv.appTimeZone, at),
+          ),
+          messages: [
+            {
+              id: "capture-user-1",
+              role: "user",
+              parts: [{ type: "text", text: def.message }],
+            },
+          ],
+        }),
+        ...(options.signal ? { signal: options.signal } : {}),
+      });
+      return { handler, request, replay, signals };
+    }
+
+    /** Parsed `data:` lines of the UI message stream. */
+    const events = (sse: string) =>
+      sse
+        .split("\n")
+        .filter((l) => l.startsWith("data: ") && l !== "data: [DONE]")
+        .map((l) => JSON.parse(l.slice(6)) as { type: string });
+
+    it("streams text parts for a real question capture", async () => {
+      const { handler, request, replay } = setup(
+        "chat-question-purchase-date",
+        ["chat-question-purchase-date"],
+      );
+      const response = await handler(request);
+      expect(response.status).toBe(200);
+      const parts = events(await response.text());
+      expect(parts.some((p) => p.type === "text-delta")).toBe(true);
+      expect(parts.some((p) => p.type === "data-decision")).toBe(false);
+      replay.assertAllConsumed();
+    });
+
+    it("emits data-decision before the text for the new-fact capture (two outbound requests)", async () => {
+      const { handler, request, replay } = setup(
+        "chat-new-fact-change-decision",
+        ["chat-new-fact-change-decision", "chat-new-fact-change-decision-2"],
+      );
+      const response = await handler(request);
+      expect(response.status).toBe(200);
+      const parts = events(await response.text());
+      const decision = parts.findIndex((p) => p.type === "data-decision");
+      const text = parts.findIndex((p) => p.type === "text-delta");
+      expect(decision).toBeGreaterThanOrEqual(0);
+      expect(text).toBeGreaterThan(decision);
+      expect(replay.calls).toBe(2);
+      replay.assertAllConsumed();
+    });
+
+    it("aborts the model call within 1 s after client disconnect (TAC-002-05)", async () => {
+      const controller = new AbortController();
+      const { handler, request, replay, signals } = setup(
+        "chat-question-purchase-date",
+        ["chat-question-purchase-date"],
+        { delayMs: 30_000, signal: controller.signal },
+      );
+      const response = await handler(request);
+      const reading = response.text().catch(() => "aborted");
+      const started = Date.now();
+      while (replay.calls < 1 && Date.now() - started < 5_000) {
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      expect(replay.calls).toBe(1);
+      const abortedAt = Date.now();
+      controller.abort();
+      await reading;
+      expect(signals.length).toBeGreaterThan(0);
+      expect(signals.every((s) => s.aborted)).toBe(true);
+      expect(Date.now() - abortedAt).toBeLessThan(1_000);
+    });
+
+    it.todo(
+      "masks a provider failure during streaming as chat_failed (coverage gap: no real chat error capture exists)",
+    );
+  });
 });

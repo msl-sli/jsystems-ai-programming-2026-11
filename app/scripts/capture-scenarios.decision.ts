@@ -45,7 +45,7 @@ type PhotoId = (typeof SCREENING_PHOTOS)[number]["id"];
  * (not the recording one, so the decision stays `<name>.json`). Run `npm run capture:llm -- screening-<photo>-<type>`
  * first to avoid paying for the live screening twice.
  */
-async function screeningFor(
+export async function screeningFor(
   photoId: PhotoId,
   caseType: "return" | "complaint",
   env: ServerEnv,
@@ -78,11 +78,11 @@ function today(env: ServerEnv): string {
   return todayInTimeZone(env.appTimeZone, new Date());
 }
 
-function daysAgo(todayIso: string, days: number): string {
+export function daysAgo(todayIso: string, days: number): string {
   return format(subDays(parseISO(todayIso), days), "yyyy-MM-dd");
 }
 
-interface DecisionCase {
+export interface DecisionCase {
   photoId: PhotoId;
   caseInput: (todayIso: string) => CaseInput;
   route: (screening: ScreeningResult) => LlmRoute;
@@ -132,7 +132,7 @@ const RETURN_DESCRIPTION = "Zmiana decyzji zakupowej, sprzęt nieużywany.";
 const COMPLAINT_DESCRIPTION =
   "Na ekranie laptopa od kilku dni widać poziome linie, urządzenie nie było upuszczane.";
 
-const returnWithDescription: DecisionCase = {
+export const returnWithDescription: DecisionCase = {
   photoId: "phone-1",
   caseInput: (t) => ({
     caseType: "return",
@@ -147,6 +147,41 @@ const returnWithDescription: DecisionCase = {
     uncertainAreas: screening.uncertainAreas,
   }),
   mode: "hybrid",
+};
+
+export const complaintR10: DecisionCase = {
+  photoId: "laptop-1",
+  caseInput: (t) => ({
+    caseType: "complaint",
+    category: "laptop",
+    productName: "Laptop testowy",
+    purchaseDate: daysAgo(t, 10),
+    description: COMPLAINT_DESCRIPTION,
+  }),
+  route: (screening) => ({
+    kind: "llm",
+    rule: "R10",
+    uncertainAreas: screening.uncertainAreas,
+  }),
+  mode: "hybrid",
+};
+
+export const llmAlwaysR1: DecisionCase = {
+  photoId: "phone-2",
+  caseInput: (t) => ({
+    caseType: "return",
+    category: "smartphone",
+    productName: "Smartfon testowy",
+    purchaseDate: daysAgo(t, 20),
+    description: "",
+  }),
+  route: (screening) => ({
+    kind: "llm",
+    rule: "R1",
+    uncertainAreas: screening.uncertainAreas,
+    fixedCategory: "return_rejected",
+  }),
+  mode: "llm-always",
 };
 
 const SUMMARY_COMMON =
@@ -171,27 +206,7 @@ export const decisionScenarios: CaptureScenario[] = [
     modelId: (env) => env.llmModel,
     promptVersion: DECISION_PROMPT_VERSIONS.complaint,
     requestSummary: `Escalated complaint (R10), laptop-1.png bytes (JPEG), purchase today-10, synthetic description of screen lines; ${SUMMARY_COMMON}`,
-    run: (provider, env) =>
-      runDecision(
-        {
-          photoId: "laptop-1",
-          caseInput: (t) => ({
-            caseType: "complaint",
-            category: "laptop",
-            productName: "Laptop testowy",
-            purchaseDate: daysAgo(t, 10),
-            description: COMPLAINT_DESCRIPTION,
-          }),
-          route: (screening) => ({
-            kind: "llm",
-            rule: "R10",
-            uncertainAreas: screening.uncertainAreas,
-          }),
-          mode: "hybrid",
-        },
-        provider,
-        env,
-      ),
+    run: (provider, env) => runDecision(complaintR10, provider, env),
   },
   {
     name: "decision-llm-always-r1",
@@ -200,28 +215,7 @@ export const decisionScenarios: CaptureScenario[] = [
     modelId: (env) => env.llmModel,
     promptVersion: DECISION_PROMPT_VERSIONS.return,
     requestSummary: `llm-always R1 explain-only: fixed category return_rejected, phone-2.jpeg, purchase today-20, no description; ${SUMMARY_COMMON}; system adds the "Fixed category" section`,
-    run: (provider, env) =>
-      runDecision(
-        {
-          photoId: "phone-2",
-          caseInput: (t) => ({
-            caseType: "return",
-            category: "smartphone",
-            productName: "Smartfon testowy",
-            purchaseDate: daysAgo(t, 20),
-            description: "",
-          }),
-          route: (screening) => ({
-            kind: "llm",
-            rule: "R1",
-            uncertainAreas: screening.uncertainAreas,
-            fixedCategory: "return_rejected",
-          }),
-          mode: "llm-always",
-        },
-        provider,
-        env,
-      ),
+    run: (provider, env) => runDecision(llmAlwaysR1, provider, env),
   },
   /**
    * Invalid-answer strategy (corrective retry). The policy TEXT sent to the model is the real one, but the rule-ID set the code

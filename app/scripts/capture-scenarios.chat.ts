@@ -49,7 +49,10 @@ function syntheticScreening(): ScreeningResult {
 }
 
 /** Complaint decided by the template route R10 (accepted, replacement or refund, CMP-2 and CMP-4). */
-function complaintContext(env: ServerEnv, today: string): ChatCaseContext {
+export function complaintContext(
+  env: ServerEnv,
+  today: string,
+): ChatCaseContext {
   const caseInput: CaseInput = {
     caseType: "complaint",
     category: "smartphone",
@@ -93,13 +96,13 @@ function complaintContext(env: ServerEnv, today: string): ChatCaseContext {
   };
 }
 
-interface ChatScenarioDef {
+export interface ChatScenarioDef {
   name: string;
   message: string;
   summary: string;
 }
 
-const CHAT_SCENARIOS: ChatScenarioDef[] = [
+export const CHAT_SCENARIOS: ChatScenarioDef[] = [
   {
     name: "chat-question-purchase-date",
     message: "Jaką datę zakupu podałem w zgłoszeniu?",

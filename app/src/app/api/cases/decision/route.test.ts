@@ -6,7 +6,21 @@ import {
   ErrorResponseSchema,
   type ScreeningResult,
 } from "@/domain/contracts";
+import { todayInTimeZone } from "@/domain/dates";
 import { loadServerEnv } from "@/server/env";
+import { createLlmProvider } from "@/server/llm";
+import { createReplayFetch } from "@/test/replay-fetch";
+import {
+  SCREENING_PHOTOS,
+  loadScreeningCaseImage,
+} from "../../../../../scripts/capture-scenarios";
+import {
+  complaintR10,
+  llmAlwaysR1,
+  returnWithDescription,
+  screeningFor,
+  type DecisionCase,
+} from "../../../../../scripts/capture-scenarios.decision";
 import type { ApiDeps } from "@/server/http/handler";
 import { createDecisionHandler, maxDuration } from "./route";
 
@@ -22,6 +36,25 @@ const NON_JPEG: [string, string][] = [
   ["PNG", PNG_SIGNATURE],
   ["WebP (laptop-2.webp)", b64("laptop-2.webp")],
 ];
+
+// Test seam for the invalid-answer capture: the policy text sent is real, only the validated rule-ID set is narrowed
+// (same as scripts/capture-scenarios.decision.ts did when recording).
+let restrictedRuleIds: string[] | undefined;
+vi.mock("@/server/policies", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/server/policies")>();
+  return {
+    ...original,
+    loadPolicies: (dir: string) => {
+      const policies = original.loadPolicies(dir);
+      return restrictedRuleIds
+        ? {
+            ...policies,
+            return: { ...policies.return, ruleIds: restrictedRuleIds },
+          }
+        : policies;
+    },
+  };
+});
 
 const baseEnv = {
   OPENROUTER_API_KEY: "test-key",
@@ -365,15 +398,136 @@ describe("POST /api/cases/decision", () => {
     });
   });
 
-  it.todo(
-    "200 with decisionPath llm and exactly one chat request for a complaint (R10), from real captures",
-  );
-  it.todo(
-    "200 after a corrective retry (two chat requests), from real captures",
-  );
-  it.todo("502 llm_failed after a failed corrective retry, from real captures");
-  it.todo("504 llm_timeout for a delayed replay, from real captures");
-  it.todo(
-    "llm-always mode routes R1..R8 through the llm path, from real captures",
-  );
+  describe("llm route from real captures (replayed OpenRouter responses)", () => {
+    const CAPTURES = path.resolve(
+      process.cwd(),
+      "tests/fixtures/llm-captures/decision",
+    );
+    const capturePath = (name: string) => path.join(CAPTURES, `${name}.json`);
+    const capturedAt = (name: string) =>
+      new Date(
+        JSON.parse(
+          readFileSync(
+            capturePath(name).replace(/\.json$/, ".meta.json"),
+            "utf8",
+          ),
+        ).capturedAt,
+      );
+
+    async function run(
+      spec: DecisionCase,
+      captures: string[],
+      options: {
+        mode?: string;
+        restrictReturnRuleIds?: string[];
+        delayMs?: number;
+        timeoutMs?: number;
+      } = {},
+    ) {
+      const replayEnv = loadServerEnv({
+        OPENROUTER_API_KEY: "unused",
+        LLM_MODEL: "openai/gpt-6-luna",
+        DECISIONS_MODEL: "typesafe/jev-1.14",
+        ...(options.mode ? { DECISION_MODE: options.mode } : {}),
+      });
+      const at = capturedAt(captures[0]!);
+      const todayIso = todayInTimeZone(replayEnv.appTimeZone, at);
+      const caseInput = spec.caseInput(todayIso);
+      const photo = SCREENING_PHOTOS.find((p) => p.id === spec.photoId)!;
+      // The real screening answer comes from its own capture, parsed by the real screenCase.
+      const screening = await screeningFor(
+        spec.photoId,
+        caseInput.caseType,
+        replayEnv,
+      );
+      const replay = createReplayFetch({
+        captures: captures.map(capturePath),
+        delayMs: options.delayMs ?? 0,
+      });
+      restrictedRuleIds = options.restrictReturnRuleIds;
+      const handler = createDecisionHandler({
+        getEnv: () => replayEnv,
+        createProvider: (e) =>
+          createLlmProvider({ apiKey: e.openrouterApiKey, fetch: replay }),
+        now: () => at,
+        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      });
+      const response = await handler(
+        postJson({
+          caseInput,
+          caseImage: await loadScreeningCaseImage(photo),
+          screening,
+        }),
+      );
+      return { response, replay };
+    }
+
+    it("R6 return with a description -> 200 llm path, one outbound chat request", async () => {
+      const { response, replay } = await run(returnWithDescription, [
+        "decision-return-description",
+      ]);
+      expect(response.status).toBe(200);
+      const parsed = DecisionResponseSchema.parse(await response.json());
+      expect(parsed.decision).toMatchObject({
+        decisionPath: "llm",
+        routeRule: "R6",
+        mode: "hybrid",
+      });
+      expect(replay.calls).toBe(1);
+      replay.assertAllConsumed();
+    });
+
+    it("complaint (captured as R10, routed R3) -> 200 llm path with exactly one outbound chat request", async () => {
+      const { response, replay } = await run(complaintR10, [
+        "decision-complaint",
+      ]);
+      expect(response.status).toBe(200);
+      const parsed = DecisionResponseSchema.parse(await response.json());
+      expect(parsed.decision).toMatchObject({
+        decisionPath: "llm",
+        // The capture script forced R10, the real router picks R3 for this screening; the request hash is identical.
+        routeRule: "R3",
+      });
+      expect(replay.calls).toBe(1);
+      replay.assertAllConsumed();
+    });
+
+    it("llm-always mode routes R1 through the llm path (explain-only, fixed category)", async () => {
+      const { response, replay } = await run(
+        llmAlwaysR1,
+        ["decision-llm-always-r1"],
+        { mode: "llm-always" },
+      );
+      expect(response.status).toBe(200);
+      const parsed = DecisionResponseSchema.parse(await response.json());
+      expect(parsed.decision).toMatchObject({
+        decisionPath: "llm",
+        routeRule: "R1",
+        category: "return_rejected",
+        mode: "llm-always",
+      });
+      expect(replay.calls).toBe(1);
+      replay.assertAllConsumed();
+    });
+
+    it("502 llm_failed after the corrective retry (two outbound requests)", async () => {
+      const { response, replay } = await run(
+        returnWithDescription,
+        ["decision-return-invalid-first", "decision-return-invalid-first-2"],
+        { restrictReturnRuleIds: ["RET-7"] },
+      );
+      await expectError(response, 502, "llm_failed");
+      expect(replay.calls).toBe(2);
+      replay.assertAllConsumed();
+    });
+
+    it("504 llm_timeout for a delayed replay with a small timeout", async () => {
+      const { response } = await run(
+        returnWithDescription,
+        ["decision-return-description"],
+        { delayMs: 2_000, timeoutMs: 50 },
+      );
+      await expectError(response, 504, "llm_timeout");
+    });
+  });
 });

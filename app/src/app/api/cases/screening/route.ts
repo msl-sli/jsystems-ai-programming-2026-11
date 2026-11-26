@@ -47,7 +47,7 @@ export function createScreeningHandler(deps: ApiDeps = defaultDeps) {
       const provider = deps.createProvider(env);
       const screening = await screenCase(caseInput, caseImage, {
         decisionModel: getDecisionModel(provider, env.decisionsModel),
-        signal: timeoutSignal(request, TIMEOUT_MS),
+        signal: timeoutSignal(request, deps.timeoutMs ?? TIMEOUT_MS),
         threshold: env.confidenceThreshold,
       });
       const body = ScreeningResponseSchema.parse({ screening });

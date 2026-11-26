@@ -15,6 +15,8 @@ export interface ApiDeps {
   getEnv(): ServerEnv;
   createProvider(env: ServerEnv): LlmProvider;
   now(): Date;
+  /** Test seam: overrides the route's LLM timeout (production leaves it unset). */
+  timeoutMs?: number;
 }
 
 export const defaultDeps: ApiDeps = {
