@@ -1,6 +1,7 @@
-// Test-only helpers. FirstMessage and decision values come from the real domain function
-// `decideWithTemplate` fed with constructed ScreeningResult inputs (pure input, plan 7a.3).
-// I4 recorded API captures replace these once tests/fixtures/api-captures/ exists.
+// Test-only helpers. rejected()/accepted() and capturedChatState() come from real recorded API responses
+// (tests/fixtures/api-captures/, plan 7a.3). `decide`/`betterPhoto` remain on the real domain function
+// `decideWithTemplate` fed with a constructed ScreeningResult (pure domain input) ONLY because no capture
+// has a manual_review/better_photo decision; replace them when one is recorded.
 import type { CaseInput } from "@/domain/case-schema";
 import type {
   DecisionHistoryEntry,
@@ -12,9 +13,11 @@ import { computeFacts } from "@/domain/dates";
 import { routeCase } from "@/domain/routing";
 import { decideWithTemplate } from "@/domain/templates";
 import {
+  caseSessionReducer,
   initialCaseSessionState,
   type CaseSessionState,
 } from "@/features/case-session";
+import { captureJson } from "@/test/api-capture";
 
 export const TODAY = "2026-11-26";
 const POLICY_IDS = [
@@ -77,8 +80,16 @@ export function decide(
   return decideWithTemplate(route, caseInput, scr, facts, mode, POLICY_IDS);
 }
 
-export const rejected = () => decide(lateReturn);
-export const accepted = () => decide(freshReturn);
+/** Captured a-return-20d (template R1, return_rejected). */
+export const rejected = (): Pick<
+  DecisionResponse,
+  "decision" | "firstMessage"
+> => captureJson<DecisionResponse>("a-return-20d-decision");
+/** Captured f-return-nodesc (llm R3, return_accepted). */
+export const accepted = (): Pick<
+  DecisionResponse,
+  "decision" | "firstMessage"
+> => captureJson<DecisionResponse>("f-return-nodesc-decision");
 export const betterPhoto = () =>
   decide(freshReturn, screening({ photoCertain: false }), "decisions-only");
 
@@ -111,4 +122,53 @@ export function chatState(
     firstMessage: d.firstMessage,
     decisionHistory: [entryOf(d)],
   };
+}
+
+// Session states built from the real captured API responses (tests/fixtures/api-captures/), reduced
+// by the real reducer, so the chat caseContext matches what the app really had after processing.
+const IMAGE = {
+  mediaType: "image/jpeg" as const,
+  base64: "AAAA",
+  width: 1,
+  height: 1,
+};
+
+/** complaint laptop, purchase 2026-11-16 (capture c-complaint-10d); the description is a domain input. */
+export const complaintInput: CaseInput = {
+  caseType: "complaint",
+  category: "laptop",
+  productName: "Laptop Y",
+  purchaseDate: "2026-11-16",
+  description: "Na ekranie pojawiają się pionowe linie od kilku dni.",
+};
+/** return smartphone, purchase 2026-11-23 (capture f-return-nodesc). */
+export const capturedReturnInput: CaseInput = {
+  caseType: "return",
+  category: "smartphone",
+  productName: "Telefon X",
+  purchaseDate: "2026-11-23",
+  description: "",
+};
+
+export function capturedChatState(
+  prefix: "c-complaint-10d" | "f-return-nodesc",
+  caseInput: CaseInput,
+): CaseSessionState {
+  const { screening } = captureJson<{ screening: ScreeningResult }>(
+    `${prefix}-screening`,
+  );
+  const response = captureJson<DecisionResponse>(`${prefix}-decision`);
+  let state: CaseSessionState = {
+    ...initialCaseSessionState,
+    status: "processing",
+    stage: "screening",
+    caseInput,
+    photoUrl: "blob:mock-1",
+  };
+  state = caseSessionReducer(state, {
+    type: "screened",
+    screening,
+    image: IMAGE,
+  });
+  return caseSessionReducer(state, { type: "decided", response });
 }

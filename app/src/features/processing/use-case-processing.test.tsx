@@ -3,6 +3,9 @@ import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CaseSessionProvider, useCaseSession } from "@/features/case-session";
 import { image, photoFile, returnCase } from "@/features/case-session/fixtures";
+import { captureJson, createCaptureFetch } from "@/test/api-capture";
+import type { DecisionResponse } from "@/domain/contracts";
+import { ProcessingScreen } from "./processing-screen";
 import { ProcessingController } from "./processing-controller";
 
 const never = () => new Promise<Response>(() => {});
@@ -140,8 +143,87 @@ describe("ProcessingController", () => {
     expect(signal?.aborted).toBe(true);
   });
 
-  it.todo(
-    "success path: screened then decided dispatched, state becomes chat from I4 api-captures",
-  );
-  it.todo("real 502 / 413 error responses lead to failed from I4 api-captures");
+  describe("with real API captures", () => {
+    /** Serves captures verbatim; holds each response until released, to observe the stage. */
+    function gated(names: string[]) {
+      const f = createCaptureFetch(names);
+      const releases: (() => void)[] = [];
+      const gates = names.map(
+        (_, i) => new Promise<void>((r) => (releases[i] = r)),
+      );
+      const fetch = async (url: string, init: RequestInit) => {
+        const call = f.calls.length;
+        const res = await f.fetch(url, init);
+        await gates[call];
+        return res;
+      };
+      return { f, fetch, release: (i: number) => releases[i]!() };
+    }
+
+    function StageText() {
+      const { state } = useCaseSession();
+      return state.status === "processing" ? (
+        <ProcessingScreen photoUrl={null} stage={state.stage ?? "screening"} />
+      ) : null;
+    }
+
+    it.each([
+      ["template R1", "a-return-20d", "template", "return_rejected"],
+      ["llm R3", "c-complaint-10d", "llm", "complaint_rejected"],
+    ])(
+      "success path (%s): stage text switches, then decided leads to chat",
+      async (_label, prefix, path, category) => {
+        const g = gated([`${prefix}-screening`, `${prefix}-decision`]);
+        const compress = vi.fn().mockResolvedValue(image);
+        const probe: { current: Probe | null } = { current: null };
+        function Inner() {
+          probe.current = useCaseSession();
+          return <StageText />;
+        }
+        render(
+          <CaseSessionProvider>
+            <ProcessingController
+              fetch={g.fetch as unknown as typeof globalThis.fetch}
+              compress={compress}
+            />
+            <Inner />
+          </CaseSessionProvider>,
+        );
+        act(() => probe.current!.submit(returnCase, photoFile()));
+        await act(() => vi.advanceTimersByTimeAsync(0));
+        expect(screen.getByText("Analizujemy zdjęcie…")).toBeTruthy();
+        g.release(0);
+        await act(() => vi.advanceTimersByTimeAsync(0));
+        expect(screen.getByText("Przygotowujemy decyzję…")).toBeTruthy();
+        expect(probe.current!.state.stage).toBe("decision");
+        expect(g.f.calls[1]!.body).toMatchObject({
+          screening: captureJson<{ screening: unknown }>(`${prefix}-screening`)
+            .screening,
+        });
+
+        g.release(1);
+        await act(() => vi.advanceTimersByTimeAsync(0));
+        const { state } = probe.current!;
+        const captured = captureJson<DecisionResponse>(`${prefix}-decision`);
+        expect(state.status).toBe("chat");
+        expect(state.decision).toEqual(captured.decision);
+        expect(state.decision).toMatchObject({ decisionPath: path, category });
+        expect(state.firstMessage).toEqual(captured.firstMessage);
+        expect(state.decisionHistory).toHaveLength(1);
+      },
+    );
+
+    it.each([
+      ["502 (AC-17)", "invalid-key-return-screening"],
+      ["413", "limits-oversize-screening"],
+    ])("real %s envelope leads to failed", async (_label, name) => {
+      const f = createCaptureFetch([name]);
+      const { api } = setup(f.fetch as never);
+      act(() => api().submit(returnCase, photoFile()));
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(status()).toBe("form");
+      expect(api().state.processingError).toBe(true);
+      expect(api().state.caseInput).toEqual(returnCase);
+    });
+  });
 });
