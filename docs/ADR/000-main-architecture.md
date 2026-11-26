@@ -1,20 +1,20 @@
 # ADR: Hardware Service Decision Copilot — Main Architecture
 
-**Date:** 2026-11-25 (revision 2: Luna Decisions screening, AI Elements, project initialization)
+**Date:** 2026-11-25 (revision 2: Decisions-model screening, AI Elements, project initialization; 2026-11-26: screening model `typesafe/jev-1.14`)
 **Status:** Accepted
 **PRD:** [`docs/PRD.md`](../PRD.md)
 
 Related ADRs:
 - [`001-frontend.md`](001-frontend.md) — screens, client state, form, image compression, chat UI (AI Elements)
 - [`002-backend-api.md`](002-backend-api.md) — route handlers, flow-to-endpoint mapping, contracts, limits, errors
-- [`003-ai-decision-engine.md`](003-ai-decision-engine.md) — Luna Decisions screening, routing and threshold, LLM escalation, templates, chat agent, evaluation
+- [`003-ai-decision-engine.md`](003-ai-decision-engine.md) — TypeSafe Jev Decisions screening, routing and threshold, LLM escalation, templates, chat agent, evaluation
 - [`004-project-initialization.md`](004-project-initialization.md) — creating the app from the empty `app/` folder
 
 ---
 
 ## 1. Overview
 
-Hardware Service Decision Copilot is a PoC web application in which a customer files a return or a complaint for an electronic device: a form plus one photo. The photo and form are first **screened** by a decision model (`openai/gpt-6-luna-decisions`, OpenRouter Decisions API) that returns calibrated probabilities for photo quality, device category, visible damage and condition. Deterministic code applies the date rules and, when every screening answer is confident (≥ 0.80 by default), produces the decision without an LLM. Otherwise the case is **escalated** to a multimodal LLM (`openai/gpt-6-luna`) that receives the photo, the form, the policy and the screening signals. The customer then continues in a streaming chat with the LLM.
+Hardware Service Decision Copilot is a PoC web application in which a customer files a return or a complaint for an electronic device: a form plus one photo. The photo and form are first **screened** by a decision model (`typesafe/jev-1.14`, TypeSafe Jev 1.14 on the OpenRouter Decisions API) that returns calibrated probabilities for photo quality, device category, visible damage and condition. Deterministic code applies the date rules and, when every screening answer is confident (≥ 0.80 by default), produces the decision without an LLM. Otherwise the case is **escalated** to a multimodal LLM (`openai/gpt-6-luna`) that receives the photo, the form, the policy and the screening signals. The customer then continues in a streaming chat with the LLM.
 
 This ADR set turns the PRD (what/why) into implementation decisions (how) so that an implementing agent can build the app without architectural guesses. Every PRD acceptance criterion is owned by at least one ADR.
 
@@ -25,7 +25,7 @@ This ADR set turns the PRD (what/why) into implementation decisions (how) so tha
 | Stack | Next.js 16 App Router + TypeScript strict + Vercel AI SDK 7, one project in `app/` |
 | Initialization | `create-next-app` with explicit flags, then shadcn/ui and AI Elements patterns (ADR-004) |
 | OpenRouter access | `@openrouter/ai-sdk-provider` for both models; Responses API not used |
-| Screening | `openai/gpt-6-luna-decisions` via `experimental_decide`; critical areas: photo quality, category match, damage/use, condition |
+| Screening | `typesafe/jev-1.14` (pinned version; changed from `openai/gpt-6-luna-decisions` on 2026-11-26) via `experimental_decide`; critical areas: photo quality, category match, damage/use, condition |
 | Certainty | Top probability per answer; threshold 0.80 (env); any critical answer below → whole case escalated to the LLM |
 | Decision modes | `DECISION_MODE` = `hybrid` (default) \| `decisions-only` \| `llm-always`; evaluated with `npm run eval:decisions` |
 | Decision logic | Date rules, category mapping and rule-ID validation in code; LLM for escalated evidence assessment and chat |
@@ -63,7 +63,7 @@ Versions are the latest on npm on 2026-11-25; the implementing agent pins the in
 | Option | What the docs say | Verdict for this PRD |
 |---|---|---|
 | **Vercel AI SDK** (github.com/vercel/ai, ai-sdk.dev) | v7: `streamText` + `toUIMessageStream` + `createUIMessageStreamResponse` on the server, `useChat` with `DefaultChatTransport`, `regenerate`, custom `data-*` parts; images as `file` parts (bytes/base64); structured output via `generateText` + `Output.object` (`generateObject` deprecated); `experimental_decide` for decision models; `MockLanguageModelV4` for tests; Node.js 22+ | **Use** — covers streaming chat, multimodal input, structured output and Decisions in one library |
-| **OpenRouter provider for the AI SDK** (openrouter.ai/docs/guides/community/vercel-ai-sdk) | Package `@openrouter/ai-sdk-provider`, `createOpenRouter({ apiKey })`, reads `OPENROUTER_API_KEY`; also exposes `evaluationModel()` for the Decisions API (`/api/alpha/decisions`) and accepts a custom `fetch` | **Use** — the only option that gives both `LLM_MODEL` and the Luna Decisions model through the AI SDK |
+| **OpenRouter provider for the AI SDK** (openrouter.ai/docs/guides/community/vercel-ai-sdk) | Package `@openrouter/ai-sdk-provider`, `createOpenRouter({ apiKey })`, reads `OPENROUTER_API_KEY`; also exposes `evaluationModel()` for the Decisions API (`/api/alpha/decisions`) and accepts a custom `fetch` | **Use** — the only option that gives both `LLM_MODEL` and the Decisions model through the AI SDK; for Jev its Decisions request body needs a `fetch` adapter (ADR-003 §3.2) |
 | **OpenRouter Responses API** (openrouter.ai/docs/api_reference/responses/overview) | OpenAI-compatible, `POST /api/v1/responses`, explicitly stateless (`store: true` / `previous_response_id` rejected), features: reasoning, tool calling, web search, structured output via `text.format` | **Not used** — stateless like our design but adds nothing the PRD needs; would bypass the provider's `useChat`/Decisions integration |
 | **Chat SDK** (chat-sdk.dev) | "A TypeScript library for building chat bots that run on multiple platforms" (Slack, Teams, Google Chat, Discord, Telegram, WhatsApp); Redis state adapter; no web UI | **Not a fit** — it is not a web chat app template |
 | **AI Elements** (now under ui.shadcn.com/docs/ai-elements) | Copied shadcn-style patterns (Chat, Message, Prompt Input, …), "no package to install"; old site deprecated end of November 2026 | **Use** for the chat UI (ADR-001) |
@@ -118,7 +118,7 @@ app/                                (created by create-next-app, ADR-004)
 | Framework | Next.js 16 App Router, TypeScript strict (+ `noUncheckedIndexedAccess`) | UI + API in one process; streaming route handlers |
 | AI orchestration | AI SDK 7 (`ai`, `@ai-sdk/react`), exact versions | Decisions, structured output, streaming chat, tools |
 | Provider | `@openrouter/ai-sdk-provider`, exact version | Both OpenRouter models, routing options, replayable `fetch` |
-| Screening model | `openai/gpt-6-luna-decisions` (`DECISIONS_MODEL`) | Calibrated probabilities per question, image input, no prose |
+| Screening model | `typesafe/jev-1.14` (`DECISIONS_MODEL`) | Calibrated probabilities per question, image input (JPEG/PNG, 256–1,568 px per side), no prose, $0.042/M input tokens |
 | LLM | `openai/gpt-6-luna` (`LLM_MODEL`) | Escalated decisions with photo + chat with tools |
 | UI | React, shadcn/ui, AI Elements patterns, Tailwind 4 | Accessible primitives, streaming chat patterns, brand tokens |
 | Forms | react-hook-form + zod | Field-level validation, shared schema |
@@ -184,7 +184,7 @@ Error envelope: `{ error: { code, retryable } }`; UI maps every processing failu
 |---|---|---|---|
 | `OPENROUTER_API_KEY` | OpenRouter key for both models (server only) | Yes | `sk-or-v1-…` |
 | `LLM_MODEL` | Multimodal LLM for escalated decisions and chat (must support image input, structured outputs, tools) | Yes | `openai/gpt-6-luna` |
-| `DECISIONS_MODEL` | Decision model for screening (Decisions API, image input) | Yes | `openai/gpt-6-luna-decisions` |
+| `DECISIONS_MODEL` | Decision model for screening (Decisions API, image input: JPEG/PNG) | Yes | `typesafe/jev-1.14` |
 | `DECISION_MODE` | `hybrid` \| `decisions-only` \| `llm-always` | No (default `hybrid`) | `hybrid` |
 | `DECISIONS_CONFIDENCE_THRESHOLD` | Minimum certainty (0.5–0.99) for a screening answer to count as confident | No (default `0.80`) | `0.80` |
 | `POLICIES_DIR` | Folder with the policy files | No (default `../docs/policies`) | `../docs/policies` |
@@ -210,9 +210,9 @@ The root `.env.example` currently lists `OPENROUTER_API_KEY` and `LLM_MODEL`; th
 - (-) AI SDK APIs change between majors; `experimental_decide` may change in patches → exact pinning (ADR-004).
 **Review trigger:** Phase 2 needs durable agent memory or RAG.
 
-### Two OpenRouter models: Luna Decisions for screening, Luna for reasoning and chat
+### Two OpenRouter models: TypeSafe Jev for screening, Luna for reasoning and chat
 **Status:** Accepted
-**Date:** 2026-11-25 (supersedes "One OpenRouter model for all three AI tasks")
+**Date:** 2026-11-25 (supersedes "One OpenRouter model for all three AI tasks"); revised 2026-11-26: screening model `openai/gpt-6-luna-decisions` → `typesafe/jev-1.14` by reviewer decision
 **Context:** The user wants a calibrated, cheap pre-check before the multimodal LLM and the option to skip the LLM when certainty is high.
 **Decision:** `DECISIONS_MODEL` screens every case; `LLM_MODEL` handles escalations and chat. Both through `@openrouter/ai-sdk-provider` with `data_collection: deny`.
 **Rejected alternatives:**
@@ -220,7 +220,7 @@ The root `.env.example` currently lists `OPENROUTER_API_KEY` and `LLM_MODEL`; th
 - Decision model only: cannot chat or explain complex complaints.
 **Consequences:**
 - (+) Certainty per area; LLM-free decisions for clear cases.
-- (-) Two models to verify and monitor; Decisions API is alpha; model page returned 404 during research (TAC-003-07 gate).
+- (-) Two models (two vendors since the 2026-11-26 revision) to verify and monitor; Decisions API is alpha; Jev image input is an early TypeSafe feature, and provider 3.1.0 needs a request-format adapter and raw-body refusal parsing (ADR-003 §2, §3.2; TAC-003-07 gate).
 **Review trigger:** Evaluation report shows screening adds latency without reducing escalations.
 
 ### Hybrid decision: code rules, screening router, LLM escalation
@@ -297,7 +297,7 @@ flowchart LR
     CHS --> POL
   end
 
-  ORD["OpenRouter /api/alpha/decisions<br/>gpt-6-luna-decisions"]
+  ORD["OpenRouter /api/alpha/decisions<br/>typesafe/jev-1.14"]
   ORC["OpenRouter /api/v1 chat<br/>gpt-6-luna"]
 
   Proc -- "form + photo" --> SCRH
@@ -312,9 +312,9 @@ flowchart LR
 ```mermaid
 flowchart TD
   A["Form + original photo"] --> B["Client validation (zod, magic bytes, 10 MB)"]
-  B --> C["Compress to JPEG, 1568 px"]
+  B --> C["Compress to JPEG, 256-1568 px per side"]
   C --> D["/api/cases/screening"]
-  D --> E["Luna Decisions: 4 questions -> probabilities"]
+  D --> E["Jev 1.14: 4 questions -> probabilities"]
   E --> F["ScreeningResult (certainty per area)"]
   F --> G["/api/cases/decision"]
   G --> H["Facts + routing R1-R10 (mode, threshold)"]

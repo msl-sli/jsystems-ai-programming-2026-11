@@ -54,7 +54,8 @@ Re-record captures when a prompt version, a model ID or an AI package version (`
 Filled in by the orchestrator.
 
 - Key check (`GET /api/v1/key`): _pending_
-- Decisions model listing (`openai/gpt-6-luna-decisions`, image input): _pending_
+- Decisions model listing (`typesafe/jev-1.14`, image input; `GET /api/v1/models?output_modalities=decisions&input_modalities=image`): _pending_
+- First real screening capture accepted with the normalized wire format and `data_collection: deny` (ADR-003 TAC-003-07): _pending_
 - LLM capabilities (`openai/gpt-6-luna`: image input, `structured_outputs`, `tools`): _pending_
 
 ## Captures
