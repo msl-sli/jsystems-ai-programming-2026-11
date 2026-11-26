@@ -27,7 +27,7 @@ Not covered: request/response contracts and server limits (ADR-002), prompts, ru
 | React Hook Form | `/react-hook-form/react-hook-form` | Form state, `shouldFocusError`, `mode: onTouched` |
 | RHF resolvers | `/react-hook-form/resolvers` | zod resolver |
 | Zod | `/colinhacks/zod` | Shared `CaseInput` schema with Polish messages |
-| Markdown rendering | Renderer shipped with the AI Elements Message pattern (fallback: https://github.com/remarkjs/react-markdown) | Agent answer rendering, raw HTML disabled |
+| Streamdown | `/vercel/streamdown` | Streaming Markdown of agent answers; raw HTML disabled by omitting `defaultRehypePlugins.raw` (keep `sanitize` + `harden`) |
 | Canvas / createImageBitmap | https://developer.mozilla.org/en-US/docs/Web/API/Window/createImageBitmap | EXIF-aware decode and resize |
 
 ---
@@ -52,7 +52,7 @@ The reducer keeps `caseInput`, the original `File`, the compressed `CaseImage`, 
 
 - Fields in PRD §9.1 order: case type (radio group rendered as two large options, no default — AC-02), category (select, no default, AC-03 labels), name/model (input), purchase date (shadcn date picker: popover + calendar, Polish locale, dates after today and before today−10 years disabled; typed input is also validated — AC-05), description (textarea with counter; label suffix "(wymagane)" for complaint, "(opcjonalne)" for return, neutral before a type is chosen — AC-06, AC-07), photo field, AI notice (AC-11), submit "Wyślij zgłoszenie".
 - Validation: one zod schema from `domain/case-schema`, conditional on `caseType`, producing the exact Polish messages from AC-04..AC-08. React Hook Form `mode: onTouched` (validate on leaving a field) and `shouldFocusError: true` (focus first invalid field on submit — AC-12). Changing case type keeps all values and re-runs description validation if the field was touched (AC-13).
-- "Today" for the date picker is the browser's local date; the server recomputes facts in `APP_TIME_ZONE` (difference documented in §6).
+- "Today" for the date picker is the browser's local date; the server recomputes facts in `APP_TIME_ZONE` and is authoritative: around midnight a date the browser accepted may be re-evaluated by the server's date rules (no extra error message; the decision uses server facts).
 
 ### Photo field
 
@@ -86,20 +86,20 @@ The reducer keeps `caseInput`, the original `File`, the compressed `CaseImage`, 
 
 ### Chat components (AI Elements)
 
-The Chat screen is assembled from AI Elements patterns (copied, owned code in `src/components/ai-elements/`, see ADR-004 step 8) driven by `useChat`:
+The Chat screen is assembled from the AI Elements composition on ui.shadcn.com (verified in research R1): shadcn primitives `message-scroller`, `message`, `bubble`, `input-group` installed into `src/components/ui/` (ADR-004 step 8) and composed by our own components in `src/features/chat/`, driven by `useChat`:
 
 | UI element | AI Elements pattern | Our customization |
 |---|---|---|
 | Scrollable conversation with auto-scroll and "scroll to bottom" | Chat (formerly Conversation) + Message Scroller | Polish aria labels; no empty state (first message always present) |
 | Agent / customer bubbles | Message (`from` = role) | Agent left, customer right; brand tokens |
-| Streaming Markdown of agent answers | Message's response renderer | Raw HTML disabled; links `rel="noopener noreferrer"` |
+| Streaming Markdown of agent answers | `streamdown` inside Message | Raw HTML disabled (omit `defaultRehypePlugins.raw`); links `rel="noopener noreferrer"` |
 | First message | Not a pattern — own `FirstMessageView` inside a Message bubble | Structured sections (AC-25) |
 | Decision change header | Own `DecisionChangeHeader` rendered for the `data-decision` part in the `part.type` switch | "Zmiana decyzji: <label>" + notice (AC-33) |
-| Input | Prompt Input (textarea + submit with `status`) | Attachments removed (AC-36); 1000-char limit and counter; Enter/Shift+Enter; Polish placeholder |
+| Input | Own Prompt Input composition on `input-group` (no `attachment` component), submit disabled while `status` is `submitted`/`streaming` | Attachments removed (AC-36); 1000-char limit and counter; Enter/Shift+Enter; Polish placeholder |
 | Typing indicator | Spinner / shimmer utility | Shown while `status === 'submitted'` |
 | Error + retry | Own inline component | AC-37 text, calls `regenerate()` |
 
-All English default strings in copied components are replaced with Polish (AC-40). Rendering message parts follows the documented pattern: switch on `part.type` — `text` → response renderer, `data-decision` → header, anything else → nothing.
+All English default strings in the installed components are replaced with Polish (AC-40), at least: Message Scroller "Scroll to end"/"Scroll to start" and `aria-label="Messages"`, Spinner `aria-label="Loading"`. Rendering message parts follows the documented pattern: switch on `part.type` — `text` → response renderer, `data-decision` → header, anything else → nothing.
 
 ### Chat transport
 
@@ -120,7 +120,7 @@ All English default strings in copied components are replaced with Polish (AC-40
 - `CaseFormValues` — form shape; `purchaseDate` held as `Date | undefined` in the picker and serialized to `YYYY-MM-DD` for the API.
 - `CaseSessionState` — `{ state, processingStage, caseInput, originalFile, caseImage, thumbnailUrl, screening, decisionHistory[], firstMessage, llmFindings, processingError: null | 'processing_failed' }`.
 - `DecisionBadgeVariant` — derived: `accepted` | `rejected` | `manual_review` from `DecisionResult.category`.
-- `CaseUIMessage` — AI SDK UI message type parameterized with the data part `decision: { category, label, citedRuleIds }`.
+- `CaseUIMessage` — defined in `features/chat` (not in `domain/`, which must not import `ai`) as the AI SDK UI message type parameterized with the zod data-part schema from `domain/contracts`: `decision: { category, label, citedRuleIds, manualReviewKind }`.
 
 ---
 
@@ -182,7 +182,7 @@ UI never shows server error codes; it maps every processing failure to the AC-17
 **Status:** Accepted
 **Date:** 2026-11-25
 **Context:** The chat needs streaming rendering, auto-scroll, a prompt input bound to `useChat` status, a custom data part and a structured first message, styled with the brand tokens and fully in Polish.
-**Decision:** Use AI Elements patterns (Chat, Message, Prompt Input, Message Scroller) as owned shadcn-style code, driven directly by `useChat`. AI Elements is moving to shadcn/ui (the old site is announced as deprecated at the end of November 2026), so patterns come from https://ui.shadcn.com/docs/ai-elements, with the legacy registry only as a fallback (ADR-004).
+**Decision:** Use the AI Elements composition (shadcn primitives `message-scroller`, `message`, `bubble`, `input-group` + `streamdown`), composed by our own chat components and driven directly by `useChat`. AI Elements is moving to shadcn/ui (the old site is announced as deprecated at the end of November 2026), so patterns come from https://ui.shadcn.com/docs/ai-elements, with the legacy registry only as a fallback (ADR-004).
 **Rejected alternatives:**
 - assistant-ui: complete Thread UI with an `useChatRuntime` wrapper over `useChat` (ai@7 supported), but adds a runtime layer and state library, and its docs do not describe rendering custom `data-*` parts — our decision header depends on that.
 - Fully custom components on `useChat`: maximal control, but re-implements streaming Markdown, scroll anchoring and input states that the patterns already solve.
@@ -276,7 +276,7 @@ sequenceDiagram
 | Name/model length | Unit (schema) + component | "A", 2 chars, 100 chars, 101 chars, spaces only | Message from AC-04 for 1, 101 and whitespace | Trimming |
 | Purchase date bounds | Unit + component | tomorrow, today, today−10y, today−10y−1d | Future/too-old messages from AC-05 | Leap day |
 | Description by type | Unit + component | complaint 19/20/2000/2001 chars; return empty/2000/2001 | AC-06/AC-07 messages and labels | Type switch after error (AC-13) |
-| Photo validation | Unit (signature) + component | `laptop-1.png` (JPEG bytes), `laptop-2.webp`, a `.gif`, a renamed `.txt`, an 11 MB file | Accept first two; AC-08 messages for others | Exactly 10 MB accepted |
+| Photo validation | Unit (signature) + component | `laptop-1.png` (JPEG bytes), `laptop-2.webp`, a `.gif`, a renamed `.txt`, an 11 MB file (negative fixtures are in-memory `File` buffers in unit/component tests only, see plan §10) | Accept first two; AC-08 messages for others | Exactly 10 MB accepted |
 | Photo thumbnail actions | Component | Select, "Zmień", "Usuń" | Thumbnail + name; replaced/removed; object URL revoked | — |
 | Photo hint and AI notice | Component | Switch type | AC-10 hint per type; AC-11 notice above submit | No type selected → no hint |
 | Submit invalid | Component | Two invalid fields | No fetch; messages; focus on first invalid (AC-12) | — |
@@ -296,7 +296,7 @@ sequenceDiagram
 
 ### Technical acceptance criteria
 
-- TAC-001-01: All Polish UI strings from PRD §6 appear verbatim in `features/*/texts` and are asserted by at least one component test each.
+- TAC-001-01: All Polish UI strings from PRD §6 appear verbatim in `features/*/texts` or, for decision labels, the AC-26 notice and template texts, in `domain/` constants and are asserted by at least one component test each.
 - TAC-001-02: No `localStorage`, `sessionStorage`, IndexedDB or cookie writes exist in client code.
 - TAC-001-03: The image sent to `/api/cases/screening` and `/api/cases/decision` is always `image/jpeg`, long edge ≤ 1568 px, decoded size ≤ 1.5 MB.
 - TAC-001-04: Playwright accessibility scan (axe) on Form and Chat screens reports zero serious or critical violations (Form in the no-LLM E2E suite; Processing and Chat only in the live suite on the real flow, never via intercepted requests).

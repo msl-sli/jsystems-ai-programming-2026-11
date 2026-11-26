@@ -41,9 +41,11 @@ Not covered: UI (ADR-001), screening questions, routing and prompts (ADR-003), p
 
 1. Request ID (`crypto.randomUUID()`), timer.
 2. Body-size check (`Content-Length` and bytes read) → 413.
-3. JSON parse → 400; zod validation → 400 `invalid_request`.
-4. Service call with `AbortSignal.timeout(...)` combined with `request.signal`.
-5. Map errors to the envelope; one structured log line: request ID, endpoint, status, duration, model IDs, `decisionPath`/`routeRule` (decision endpoint), screening certainties, token usage, cost, error code — never photo bytes, description or chat text.
+3. JSON parse → 400.
+4. Image checks (screening and decision endpoints): decoded image > 1.5 MB → 413 `payload_too_large`; magic bytes not JPEG → 415 `unsupported_image`.
+5. zod validation of everything else → 400 `invalid_request`.
+6. Service call with `AbortSignal.timeout(...)` combined with `request.signal`.
+7. Map errors to the envelope; one structured log line: request ID, endpoint, status, duration, model IDs, `decisionPath`/`routeRule` (decision endpoint), screening certainties, token usage, cost, error code — never photo bytes, description or chat text.
 
 Handlers run on the Node.js runtime. POST route handlers are never cached; no route segment `dynamic` option is used (it conflicts with Cache Components, which `create-next-app` enables by default — see ADR-004). Each handler exports `maxDuration` = its timeout + 5 s.
 
@@ -61,8 +63,8 @@ Handlers run on the Node.js runtime. POST route handlers are never cached; no ro
 - `ScreeningRequest` — `{ caseInput: CaseInput, caseImage: CaseImage }`
 - `ScreeningResponse` — `{ screening: ScreeningResult }` (ADR-003 §4)
 - `DecisionRequest` — `{ caseInput, caseImage, screening }` — the image is sent again because an escalated decision needs it; the template route ignores it
-- `DecisionResponse` — `{ decision: DecisionResult, firstMessage: FirstMessage }` (`decision.decisionPath`, `decision.routeRule`, `decision.mode` included)
-- `ChatRequest` — `{ caseContext: { caseInput, screening, decisionHistory (1–20), firstMessage, llmFindings? }, messages: CaseUIMessage[] }`
+- `DecisionResponse` — `{ decision: DecisionResult, firstMessage: FirstMessage, llmFindings?: LlmFindings }` (`decision.decisionPath`, `decision.routeRule`, `decision.mode` included; `llmFindings` only on the llm route, ADR-003 §4)
+- `ChatRequest` — `{ caseContext: { caseInput, screening, decisionHistory: DecisionHistoryEntry[] (1–20, ADR-003 §4), firstMessage, llmFindings? }, messages: CaseUIMessage[] }`
 - `ErrorResponse` — `{ error: { code, retryable } }`
 
 ---
@@ -94,7 +96,7 @@ Handlers run on the Node.js runtime. POST route handlers are never cached; no ro
 | Item | Contract |
 |---|---|
 | Input | `caseContext` valid; `messages` 1–100; last message role `user`, text 1–1000 chars after trim; text parts only (AC-36); body ≤ 256 KB |
-| Output 200 | AI SDK UI message stream: text parts, optional `data-decision` part `{ category, label, citedRuleIds }` before the text |
+| Output 200 | AI SDK UI message stream: text parts, optional `data-decision` part `{ category, label, citedRuleIds, manualReviewKind }` before the text |
 | Timeout | 60 s; client disconnect aborts the model call |
 | Errors | Before streaming: JSON envelope (400/413/500). During streaming: masked stream error `chat_failed` |
 
@@ -125,7 +127,7 @@ Client compression ≤ 3 s + screening ≤ 25 s + escalated decision ≤ 50 s = 
 **Context:** OpenRouter offers chat completions, a stateless OpenAI-compatible Responses API (`/api/v1/responses`) and the Decisions API (`/api/alpha/decisions`).
 **Decision:** All calls go through `@openrouter/ai-sdk-provider`: `openrouter(id)` for chat/structured output and `openrouter.evaluationModel(id)` for Decisions. The Responses API is not used.
 **Rejected alternatives:**
-- Responses API directly: stateless like our design, but offers nothing the PRD needs (its extras are reasoning chains and web search) and would require a separate client or the OpenAI provider pointed at OpenRouter, losing `decisionModel` and `useChat` stream integration.
+- Responses API directly: stateless like our design, but offers nothing the PRD needs (its extras are reasoning chains and web search) and would require a separate client or the OpenAI provider pointed at OpenRouter, losing the Decisions (`evaluationModel`) integration and `useChat` stream integration.
 - Raw HTTP for everything: re-implements streaming protocol, structured output validation and Decisions mapping.
 **Consequences:**
 - (+) One client library for both models; test replay through one injected `fetch`.
@@ -237,7 +239,7 @@ Integration tests call the exported `POST` functions with real `Request` objects
 | Decision — template route | Integration | Screening fixture satisfying R8 | 200, `decisionPath = template`, no outbound request recorded by fetch spy | R1, R2, R4, R5, R7 |
 | Decision — llm route | Integration | Complaint fixture | 200, `decisionPath = llm`, exactly one chat request | Corrective retry |
 | Decision mode switch | Integration | Same input with each `DECISION_MODE` | Paths per ADR-003 §3.3 | Invalid mode → 500 |
-| Chat streaming / tool | Integration | Replays | As previous revision | Tool refused |
+| Chat streaming / tool | Integration | Replays of real SSE captures | Text parts streamed; `data-decision` (incl. `manualReviewKind`) emitted before the text only when the tool result is accepted | Tool refused → no `data-decision` |
 | Chat limits | Integration | 1001 chars; 101 messages; file part | 400 | Whitespace |
 | Env validation | Unit | Missing `DECISIONS_MODEL`; threshold 1.5 | 500 `server_misconfigured` | — |
 | No content in logs | Integration | Any request | Logs contain no description, chat text or base64 | Error paths |

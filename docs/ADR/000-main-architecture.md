@@ -97,8 +97,7 @@ app/                                (created by create-next-app, ADR-004)
       processing/                   stage screen, submit orchestration
       chat/                         summary card, chat screen, first message, decision header
     components/ui/                  shadcn/ui primitives
-    components/ai-elements/         AI Elements patterns (owned code)
-    domain/                         pure TS: case-schema, dates, decision-rules, routing,
+    domain/                         pure TS: contracts, case-schema, dates, decision-rules, routing,
                                     templates, decision-labels, first-message, file-signature
     server/                         server-only: env, llm (provider + models), policies,
                                     ai/screening, ai/decision, ai/chat, ai/prompts/*.md, http
@@ -142,7 +141,7 @@ app/                                (created by create-next-app, ADR-004)
 | `server/ai/chat` | Streaming chat + `changeDecision` | llm, policies, domain, prompts | `api/chat` |
 | `app/api/*` | Thin HTTP adapters | server, domain | browser |
 | `features/*` | Screens and client orchestration | domain, components, `@ai-sdk/react` | `app/page` |
-| `components/ai-elements` | Chat UI patterns | components/ui | `features/chat` |
+| `components/ui` (incl. AI Elements primitives `message-scroller`, `message`, `bubble`, `input-group`) | shadcn/ui primitives, Polish strings | — | `features/*` |
 | `scripts/*` | Capture and evaluation | server, domain | developers |
 
 Direction: `features → components → (nothing server)`, `features → domain`, `app/api → server → domain`, `scripts → server → domain`. `domain` imports no Next.js, AI SDK or server code. Every `server/*` entry imports `server-only`. No cycles.
@@ -153,14 +152,14 @@ Direction: `features → components → (nothing server)`, `features → domain`
 
 All models are zod schemas in `domain/` (or `server/ai` for LLM-only shapes); nothing is persisted on the server.
 
-- **CaseInput** — `caseType` (`return` | `complaint`), `category` (8 values from AC-03), `productName` (2–100), `purchaseDate` (`YYYY-MM-DD`), `description` (complaint 20–2000, return 0–2000).
+- **CaseInput** — `caseType` (`return` | `complaint`), `category` (`laptop`=Laptop, `smartphone`=Smartfon, `tablet`=Tablet, `monitor`=Monitor, `tv`=Telewizor, `audio`=Słuchawki / audio, `console`=Konsola do gier, `other`=Inne — AC-03), `productName` (2–100), `purchaseDate` (`YYYY-MM-DD`), `description` (complaint 20–2000, return 0–2000).
 - **CaseImage** — compressed JPEG: `mediaType` `image/jpeg`, `base64` (≤ 1.5 MB decoded), `width`, `height`. Sent to screening and decision endpoints, never to chat.
 - **ScreeningResult** — per question (`photo_quality`, `observed_category`, `visible_damage_or_use`, `condition`): value, probabilities, certainty, confident flag, refused flag, provider confidence; `uncertainAreas`; model, prompt version, cost, latency (ADR-003 §4).
 - **DeterministicFacts** — `today`, `daysSincePurchase`, `withinReturnWindow`, `withinWarranty`, `withinDeadOnArrival`.
 - **Route** — template (rule R1–R10, category, rule IDs) or llm (rule, uncertain areas, optional fixed category).
 - **DecisionResult** — `category` (one of 6: `return_accepted`, `return_rejected`, `complaint_accepted_repair`, `complaint_accepted_replacement_or_refund`, `complaint_rejected`, `manual_review`), `label`, `citedRuleIds`, `justification`, `photoFindingsSummary`, `nextSteps`, `manualReviewKind`, `decisionPath` (`template` | `llm`), `routeRule`, `mode`.
 - **FirstMessage** — `greeting`, `decisionLabel`, `justification`, `photoFindings`, `nextSteps[]`, `notice` (AC-26 constant); canonical text rendering for the chat context.
-- **ChatMessage** — AI SDK UI message; custom `data-decision` part `{ category, label, citedRuleIds }`.
+- **ChatMessage** — AI SDK UI message; custom `data-decision` part `{ category, label, citedRuleIds, manualReviewKind }`.
 - **CaseSession** (client) — state, stage, case input, original file, compressed image, screening, decision history, first message, LLM findings, processing error.
 
 ---

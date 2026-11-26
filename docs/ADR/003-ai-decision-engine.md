@@ -58,7 +58,18 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 
 **Labels** (verbatim AC-18/AC-19): `return_accepted` "Zwrot przyjęty", `return_rejected` "Zwrot odrzucony", `complaint_accepted_repair` "Reklamacja przyjęta – naprawa", `complaint_accepted_replacement_or_refund` "Reklamacja przyjęta – wymiana lub zwrot pieniędzy", `complaint_rejected` "Reklamacja odrzucona", `manual_review` "Wymaga weryfikacji przez konsultanta".
 
-**Outcome mapping and validation** (unchanged): any decision source (template, LLM, chat tool) produces an abstract outcome `accepted | rejected | manual_review`; `resolveOutcome` maps it to the case-type category, applies the CMP-4 remedy from `withinDeadOnArrival`, rejects acceptance outside the window/warranty, and requires non-empty `citedRuleIds` that exist in the loaded policy.
+**Outcome mapping and validation:** any decision source (template, LLM, chat tool) produces an abstract outcome `accepted | rejected | manual_review`; `resolveOutcome` maps it to the case-type category, applies the CMP-4 remedy from `withinDeadOnArrival`, rejects acceptance outside the window/warranty, and requires non-empty `citedRuleIds` that exist in the loaded policy of the case type.
+
+| Case type | Outcome | Category | Extra rule IDs added by code |
+|---|---|---|---|
+| return | `accepted` (only if `withinReturnWindow`) | `return_accepted` | — |
+| return | `rejected` | `return_rejected` | — |
+| complaint | `accepted` + `withinDeadOnArrival` (only if `withinWarranty`) | `complaint_accepted_replacement_or_refund` | CMP-4 if missing |
+| complaint | `accepted` + not `withinDeadOnArrival` (only if `withinWarranty`) | `complaint_accepted_repair` | CMP-4 if missing |
+| complaint | `rejected` | `complaint_rejected` | — |
+| any | `manual_review` | `manual_review` | — |
+
+`manualReviewKind` = `better_photo` when the source is a photo-gate template (R3 photo/R4/R5) or when the LLM returns `photoProblem = true`; otherwise `contact_support`. Whenever `manualReviewKind = better_photo` (any source), code guarantees at least two photo tips in `nextSteps` by appending the fixed tips from `domain/templates` (daylight, whole device visible, damage in focus) if fewer are present (AC-23).
 
 ### 3.2 Screening service (`server/ai/screening`)
 
@@ -84,7 +95,7 @@ Question instructions and criteria are stored in `server/ai/prompts/screening.qu
 
 An answer is **confident** when certainty ≥ `DECISIONS_CONFIDENCE_THRESHOLD` (default 0.80). The provider's per-answer `confidence` and `usage.cost` are stored in the result for logging and evaluation only.
 
-**Failures:** refusal of any question (`Experimental_DecisionRefusalError`) is not an error for the customer — the screening result marks the refused questions as `refused` (certainty 0), which forces escalation in `hybrid` and `llm-always` modes and manual review in `decisions-only` mode. Transport errors, timeouts and invalid responses fail the stage (`llm_failed` / `llm_timeout`, ADR-002).
+**Failures:** refusal of any question (`Experimental_DecisionRefusalError`) is not an error for the customer — the screening result marks the refused questions as `refused` (certainty 0), which forces escalation in `hybrid` and `llm-always` modes and manual review in `decisions-only` mode. If the thrown error does not carry the answers to the non-refused questions, all four questions are marked `refused`. Transport errors, timeouts and invalid responses fail the stage (`llm_failed` / `llm_timeout`, ADR-002).
 
 ### 3.3 Routing (`domain/routing`, pure)
 
@@ -94,7 +105,7 @@ Input: `caseInput`, `ScreeningResult`, facts, `DECISION_MODE`, threshold. Output
 |---|---|---|---|---|
 | R1 | return and `!withinReturnWindow` | template `return_rejected` [RET-1] | same | llm (category fixed to `return_rejected`, LLM only explains) |
 | R2 | complaint and `!withinWarranty` | template `complaint_rejected` [CMP-1] | same | llm (category fixed, explain only) |
-| R3 | any critical answer not confident or refused | llm(uncertain areas) | template `manual_review` (`better_photo` if `photo_quality` is the uncertain one, else `contact_support`) [RET-4 / CMP-6] | llm |
+| R3 | any critical answer not confident or refused | llm(uncertain areas) | template `manual_review`: `better_photo` [RET-3 / CMP-6] if `photo_quality` is the uncertain one, else `contact_support` [RET-4 / CMP-6] | llm |
 | R4 | `photo_quality` ≠ `ok` | template `manual_review`, `better_photo` [RET-3 / CMP-6] | same | llm |
 | R5 | `observed_category` = `no_device`, or form category ≠ `other` and observed category ≠ form category (form `other` accepts any observed category except `no_device`) | template `manual_review`, `better_photo` [RET-3 / CMP-6] | same | llm |
 | R6 | return with a non-empty description | llm (RET-5 — description may reveal use; not covered by screening) | ignore description, continue to R7 | llm |
@@ -107,7 +118,7 @@ Consequence (accepted by the user on 2026-11-25): in `hybrid` mode, LLM-free dec
 
 ### 3.4 Escalated decision service (`server/ai/decision`)
 
-Called when the route is `llm`. One `generateText` call with `Output.object({ schema: DecisionOutputSchema })`, model `openrouter(LLM_MODEL)`, temperature 0, `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
+Called when the route is `llm`. One `AbortSignal` of 50 s covers the whole stage — the first call, transport retries and the corrective retry; when it fires the stage fails with `llm_timeout`. One `generateText` call with `Output.object({ schema: DecisionOutputSchema })`, model `openrouter(LLM_MODEL)`, temperature 0, `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
 
 Message content: system prompt `decision.<return|complaint>.md` (+ shared `_guardrails.md`) with the full policy text; user content with (1) deterministic facts block, (2) form data block (description quoted as customer data), (3) screening signals block — every answer with its value and certainty, the list of uncertain areas to verify first, and an instruction that signals are hints from an automated pre-check that must be verified against the photo, (4) the image as a file part (`image/jpeg`).
 
@@ -121,7 +132,7 @@ When the route is `template`, no LLM is called. `buildTemplateFirstMessage` comp
 - greeting — fixed neutral sentence;
 - justification — per rule (R1 includes "N dni od zakupu" and the 14-day limit; R2 cites the 24-month warranty; R4 names the photo problem from `photo_quality`; R5 names the observed vs selected category; R7/R8 describe the screening result);
 - "Co widzimy na zdjęciu" — sentences generated from screening answers (observed category, damage/use, condition level), without percentages;
-- "Kolejne kroki" — Polish versions of RET-6 / CMP-7 (accepted), alternatives from RET-1 / CMP-1 (rejected), RET-7 / CMP-8 with at least two photo tips (manual review, AC-23);
+- "Kolejne kroki" — Polish versions of RET-6 / CMP-7 (accepted); for rejections: R1 → "Jeśli sprzęt jest wadliwy, możesz złożyć reklamację (gwarancja 24 miesiące od zakupu)." + contact `support@example.com` (RET-1), R2 → "Płatna naprawa jest dostępna po kontakcie z obsługą: support@example.com." (CMP-1), R7 → "Jeśli sprzęt ma wadę, możesz złożyć reklamację zamiast zwrotu." + "W razie pytań napisz na support@example.com." (RET-2 offers no alternative of its own; these steps only point to options that exist in the policies); RET-7 / CMP-8 with at least two photo tips (manual review, AC-23);
 - notice — AC-26 constant.
 
 Templates copy policy facts (addresses, e-mail, deadlines) into Polish text. A unit test asserts that every address, e-mail and number of days used in templates appears in the corresponding policy file, so a policy change that breaks a template fails the build.
@@ -132,7 +143,7 @@ Templates copy policy facts (addresses, e-mail, deadlines) into Polish text. A u
 
 Tool `changeDecision` (unchanged): input `{ outcome, citedRuleIds, reason }`; execution validates with `resolveOutcome` using recomputed facts; accepted changes emit a `data-decision` part and return `{ accepted: true, category, label }`; refused proposals return `{ accepted: false, why }`. The model never writes "Zmiana decyzji" itself (ADR-001 renders the header).
 
-Guardrails (unchanged): case-only scope with a verbatim refusal sentence for off-topic questions (AC-35), no photo/file intake (AC-36), no personal data requests, no invented rules or compensation, no change under pressure (AC-34), no claim of finality, neutral gender-free Polish.
+Guardrails: case-only scope with the verbatim off-topic sentence "Mogę pomóc tylko w sprawie tego zgłoszenia — zwrotu lub reklamacji i związanych z nimi procedur." (AC-35, constant in `domain/templates`, quoted in the chat prompts), no photo/file intake (AC-36), no personal data requests, no invented rules or compensation, no change under pressure (AC-34), no claim of finality, neutral gender-free Polish.
 
 ### 3.7 Evaluation script (`scripts/eval-decisions`)
 
@@ -165,7 +176,14 @@ Files: `screening.questions.md`, `decision.return.md`, `decision.complaint.md`, 
 - Previous fields (`category`, `label`, `citedRuleIds`, `justification`, `photoFindingsSummary`, `nextSteps`, `manualReviewKind`) plus `decisionPath`: `template` | `llm`, `routeRule`: R1..R10, `mode`: `hybrid` | `decisions-only` | `llm-always`.
 
 ### ChangeDecisionInput / Result
-Unchanged from the previous revision.
+- Input (tool parameters, zod): `outcome` `accepted | rejected | manual_review`; `citedRuleIds` 1–5 strings matching `^(RET|CMP)-\d+$`; `reason` string 1–400.
+- Result returned to the model: `{ accepted: true, category, label }` or `{ accepted: false, why }` with `why` ∈ `outside_return_window`, `outside_warranty`, `not_allowed_for_case_type`, `unknown_rule_id`, `no_change`.
+
+### LlmFindings (escalated cases only)
+- `photoFindingsPl` (from `DecisionOutputSchema`), `evidence[]`, `signalReview` (per screening question). Returned by the decision endpoint as `llmFindings` and sent back by the client in `ChatRequest.caseContext.llmFindings`; absent for template routes.
+
+### DecisionHistoryEntry (client and chat context)
+- `{ category, label, citedRuleIds, source: 'initial' | 'chat', manualReviewKind: 'better_photo' | 'contact_support' | null }`. The initial entry is built from `DecisionResult`; chat entries from the `data-decision` part, which therefore also carries `manualReviewKind`. The client keeps at most 20 entries; when the cap is reached the oldest **chat** entry is dropped (the initial entry is always kept).
 
 ---
 
@@ -391,7 +409,7 @@ LLM and Decisions doubles are **HTTP-level replays**: both OpenRouter models are
 | Contradictory screening | Unit | damage true + condition 0 | hybrid → llm; decisions-only → manual review RET-4 | — |
 | Templates | Unit | each template route | AC-25 order, AC-26 notice, Polish, day count for R1, ≥ 2 tips for better_photo | Singular/plural "dzień/dni" |
 | Template ↔ policy guard | Unit | templates + policy files | Every address, e-mail, day count in templates exists in the policy | Policy edited → test fails |
-| Outcome mapping & validation | Unit | all case types × outcomes; invalid rule IDs | As previous revision | — |
+| Outcome mapping & validation | Unit | all case types × outcomes × date facts; invalid rule IDs | Exactly the mapping table in §3.1; acceptance outside window/warranty rejected; unknown or cross-type rule IDs rejected | `photoProblem` → `better_photo` + ≥ 2 tips |
 | Screening service | Integration (replay) | captured decisions responses | Parsed `ScreeningResult` with certainties and cost | Real captured errors (401/404); timeout = delayed real capture; refusal only from a real capture, else reported gap — never hand-written responses or `ai/test` mock models |
 | Screening request shape | Integration | intercepted request in injected fetch | `state` array with image part as data URL at top level; no description; no `user`/`session_id`; `data_collection: deny` | — |
 | Escalated decision | Integration (replay) | captured chat-completions responses | Valid `DecisionResult` with `decisionPath = llm` | Corrective retry; disagreement logged |
@@ -408,7 +426,7 @@ Assertions are property-based and never assume photo content (per `assets/exampl
 | L1 | Return, today−20, `phone-1.jpg` | "Zwrot odrzucony", contains "20" and "14", RET-1, `decisionPath = template` (R1) |
 | L2 | Complaint, today−3 years, `laptop-2.webp` | "Reklamacja odrzucona", CMP-1, `decisionPath = template` (R2) |
 | L3 | Return, today−3, no description, `phone-2.jpeg` | Label ∈ return labels; ≥ 1 RET-* cited; AC-25 sections; AC-26 notice; path is template or llm and matches the route rule |
-| L4 | Complaint, today−10, `laptop-1.png`, description of screen lines without a fall | Label ∈ complaint labels; `decisionPath = llm` (R3 or R10); if accepted then "wymiana lub zwrot pieniędzy" |
+| L4 | Complaint, today−10, `laptop-1.png`, description of screen lines without a fall | Label ∈ complaint labels; `decisionPath` matches `routeRule` (R4/R5 → template; R3/R10 → llm); if accepted then "wymiana lub zwrot pieniędzy" |
 | L5 | After L3: "jaką datę zakupu podałem?" | Answer contains the purchase date (AC-32) |
 | L6 | After L1: pressure + off-topic | Label unchanged; off-topic declined (AC-34, AC-35) |
 
