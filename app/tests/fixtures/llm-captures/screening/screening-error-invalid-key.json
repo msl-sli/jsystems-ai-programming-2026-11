@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://openrouter.ai/api/alpha/decisions",
+    "headers": {
+      "authorization": "[redacted]",
+      "content-type": "application/json",
+      "user-agent": "ai/7.0.183 ai-sdk/provider-utils/5.0.42 runtime/node.js/24",
+      "x-openrouter-title": "Hardware Service Decision Copilot"
+    },
+    "bodySha256": "30c1b049b32f6d4dd72ebe66ed2132d7b1b2c831d126b5c391f935b2c10748bd"
+  },
+  "response": {
+    "status": 401,
+    "statusText": "Unauthorized",
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "WWW-Authenticate,PAYMENT-REQUIRED,Payment-Receipt,PAYMENT-RESPONSE,Location,X-Generation-Id,x-openrouter-error-origin,x-openrouter-error-tool,X-Provider-Name,request-id,x-openrouter-subscription-passthrough,anthropic-ratelimit-unified-status,Retry-After,cf-ray",
+      "alt-svc": "h3=\":443\"; ma=86400",
+      "cf-ray": "a609248e4ef9736b-WAW",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 13:12:06 GMT",
+      "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "server": "cloudflare",
+      "set-cookie": "__cf_bm=iPUOzsPWCbXph_uET_dIt5EJ_T3Xdt.fxJN0tWuV7t4-1795698726.1286998-1.0.1.1-kjlbxTiQGT6G7Vv0K7dKTccem01kQz_SqT_zKFsMn02DzMov7Ebmq66xM0ywzkQ9LH1EJgrOuKYNrZo8l4WbZmBFHmTUydIsI32.27cpUw62tz2FR4F8ybWGpVkr1oYg; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=openrouter.ai; Expires=Thu, 26 Nov 2026 13:42:06 GMT",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-openrouter-error-origin": "client"
+    },
+    "body": "{\"error\":{\"message\":\"Missing Authentication header\",\"code\":401}}"
+  }
+}

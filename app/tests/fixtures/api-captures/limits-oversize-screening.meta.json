@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-26T15:04:53.801Z",
+  "today": "2026-11-26",
+  "run": "limits",
+  "endpoint": "/api/cases/screening",
+  "requestSummary": "3 MB body",
+  "durationMs": 190,
+  "packages": {
+    "next": "16.4.6",
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

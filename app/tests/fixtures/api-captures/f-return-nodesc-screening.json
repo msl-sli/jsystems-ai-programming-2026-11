@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/cases/screening"
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 15:09:53 GMT",
+      "keep-alive": "timeout=5",
+      "transfer-encoding": "chunked",
+      "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding"
+    },
+    "body": "{\"screening\":{\"answers\":{\"photo_quality\":{\"value\":\"ok\",\"probabilities\":{\"ok\":0.64,\"blurry\":0,\"too_dark\":0,\"device_not_fully_visible\":0.36,\"no_device\":0},\"certainty\":0.64,\"confident\":false,\"refused\":false,\"providerConfidence\":0.55},\"observed_category\":{\"value\":\"smartphone\",\"probabilities\":{\"laptop\":0,\"smartphone\":1,\"tablet\":0,\"monitor\":0,\"tv\":0,\"audio\":0,\"console\":0,\"other_electronics\":0,\"no_device\":0},\"certainty\":1,\"confident\":true,\"refused\":false,\"providerConfidence\":1},\"visible_damage_or_use\":{\"value\":true,\"probabilities\":{\"true\":0.74,\"false\":0.26},\"certainty\":0.74,\"confident\":false,\"refused\":false},\"condition\":{\"value\":3,\"probabilities\":{\"0\":0.12,\"1\":0.16,\"2\":0.34,\"3\":0.38},\"certainty\":0.38,\"confident\":false,\"refused\":false,\"providerConfidence\":0}},\"uncertainAreas\":[\"photo_quality\",\"visible_damage_or_use\",\"condition\"],\"model\":\"typesafe/jev-1.14\",\"promptVersion\":\"2026-11-26.1\",\"costCredits\":0,\"latencyMs\":387}}"
+  }
+}

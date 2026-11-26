@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/cases/decision"
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 15:02:55 GMT",
+      "keep-alive": "timeout=5",
+      "transfer-encoding": "chunked",
+      "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding"
+    },
+    "body": "{\"decision\":{\"category\":\"return_rejected\",\"label\":\"Zwrot odrzucony\",\"citedRuleIds\":[\"RET-1\",\"RET-2\",\"RET-5\"],\"justification\":\"Zwrot mieści się w oknie czasowym: według podanych faktów od zakupu minęły 3 dni, czyli mniej niż 14 dni (RET-1). Nie może jednak zostać przyjęty, ponieważ na zdjęciu widać liczne pęknięcia ekranu, ciemne plamy i zieloną pionową linię. Produkt z widocznymi oznakami uszkodzenia nie spełnia warunku odsprzedaży jako nowy (RET-2). Podany powód zwrotu nie zmienia tej oceny (RET-5).\",\"photoFindingsSummary\":\"Na zdjęciu widoczny jest smartfon. Na ekranie widać liczne pęknięcia, duże ciemne obszary oraz zieloną pionową linię. Produkt i jego stan są możliwe do oceny.\",\"nextSteps\":[\"Jeśli produkt jest wadliwy, można zamiast tego złożyć sprawę reklamacyjną.\"],\"manualReviewKind\":null,\"decisionPath\":\"llm\",\"routeRule\":\"R3\",\"mode\":\"hybrid\"},\"firstMessage\":{\"greeting\":\"Dzień dobry,\",\"decisionLabel\":\"Zwrot odrzucony\",\"justification\":\"Zwrot mieści się w oknie czasowym: według podanych faktów od zakupu minęły 3 dni, czyli mniej niż 14 dni (RET-1). Nie może jednak zostać przyjęty, ponieważ na zdjęciu widać liczne pęknięcia ekranu, ciemne plamy i zieloną pionową linię. Produkt z widocznymi oznakami uszkodzenia nie spełnia warunku odsprzedaży jako nowy (RET-2). Podany powód zwrotu nie zmienia tej oceny (RET-5).\",\"photoFindings\":\"Na zdjęciu widoczny jest smartfon. Na ekranie widać liczne pęknięcia, duże ciemne obszary oraz zieloną pionową linię. Produkt i jego stan są możliwe do oceny.\",\"nextSteps\":[\"Jeśli produkt jest wadliwy, można zamiast tego złożyć sprawę reklamacyjną.\"],\"notice\":\"Decyzja została przygotowana automatycznie. Ostateczna weryfikacja nastąpi po otrzymaniu sprzętu przez nasz serwis.\"},\"llmFindings\":{\"photoFindingsPl\":\"Na zdjęciu widoczny jest smartfon. Na ekranie widać liczne pęknięcia, duże ciemne obszary oraz zieloną pionową linię. Produkt i jego stan są możliwe do oceny.\",\"evidence\":[{\"source\":\"photo\",\"text\":\"Na ekranie widoczne są liczne pęknięcia, ciemne plamy oraz zielona pionowa linia.\"},{\"source\":\"date\",\"text\":\"Według podanych faktów od zakupu minęły 3 dni; zwrot mieści się w oknie 14 dni.\"},{\"source\":\"description\",\"text\":\"Opis podaje, że sprzęt jest nieużywany; sam powód zwrotu nie zmienia oceny widocznego stanu.\"}],\"signalReview\":{\"photo_quality\":{\"verdict\":\"agree\",\"note\":\"Telefon i jego ekran są widoczne na tyle wyraźnie, by ocenić stan.\"},\"observed_category\":{\"verdict\":\"agree\",\"note\":\"Na zdjęciu znajduje się smartfon, zgodny z kategorią formularza.\"},\"visible_damage_or_use\":{\"verdict\":\"agree\",\"note\":\"Na ekranie widać liczne pęknięcia, ciemne plamy i zieloną linię.\"},\"condition\":{\"verdict\":\"agree\",\"note\":\"Widoczne uszkodzenia ekranu oznaczają, że produkt nie wygląda na możliwy do odsprzedaży jako nowy.\"}}}}"
+  }
+}

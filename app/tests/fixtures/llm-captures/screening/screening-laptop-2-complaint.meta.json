@@ -1,0 +1,12 @@
+{
+  "endpoint": "alpha/decisions",
+  "modelId": "typesafe/jev-1.14",
+  "promptVersion": "2026-11-26.1",
+  "requestSummary": "Decisions: 4 questions (photo_quality, observed_category, visible_damage_or_use, condition); state = instruction text + json {caseType: complaint, formCategory: laptop, productName: Laptop testowy} + image/jpeg from laptop-2.webp (converted/resized with sharp); no description; data_collection deny",
+  "scenario": "screening-laptop-2-complaint",
+  "capturedAt": "2026-11-26T13:12:06.106Z",
+  "packages": {
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

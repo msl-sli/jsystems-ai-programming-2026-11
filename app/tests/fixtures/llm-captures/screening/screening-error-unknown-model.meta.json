@@ -1,0 +1,15 @@
+{
+  "endpoint": "alpha/decisions",
+  "modelId": "openai/does-not-exist-hsdc",
+  "promptVersion": "2026-11-26.1",
+  "requestSummary": "Decisions: 4 questions (photo_quality, observed_category, visible_damage_or_use, condition); state = instruction text + json {caseType: return, formCategory: smartphone, productName: Smartfon testowy} + image/jpeg from phone-1.jpg; no description; data_collection deny; model id \"openai/does-not-exist-hsdc\"",
+  "scenario": "screening-error-unknown-model",
+  "capturedAt": "2026-11-26T13:12:06.225Z",
+  "packages": {
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  },
+  "providerHeaders": {
+    "x-openrouter-error-origin": "client"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://openrouter.ai/api/alpha/decisions",
+    "headers": {
+      "authorization": "[redacted]",
+      "content-type": "application/json",
+      "user-agent": "ai/7.0.183 ai-sdk/provider-utils/5.0.42 runtime/node.js/24",
+      "x-openrouter-title": "Hardware Service Decision Copilot"
+    },
+    "bodySha256": "5a3aa1aa8081fe25d8b180d305384d7e48e1e0aa66d49de6d8d9a34d024499e7"
+  },
+  "response": {
+    "status": 400,
+    "statusText": "Bad Request",
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "WWW-Authenticate,PAYMENT-REQUIRED,Payment-Receipt,PAYMENT-RESPONSE,Location,X-Generation-Id,x-openrouter-error-origin,x-openrouter-error-tool,X-Provider-Name,request-id,x-openrouter-subscription-passthrough,anthropic-ratelimit-unified-status,Retry-After,cf-ray",
+      "alt-svc": "h3=\":443\"; ma=86400",
+      "cf-ray": "a609248eba6d57b7-WAW",
+      "connection": "keep-alive",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 13:12:06 GMT",
+      "permissions-policy": "payment=(self \"https://checkout.stripe.com\" \"https://connect-js.stripe.com\" \"https://js.stripe.com\" \"https://*.js.stripe.com\" \"https://hooks.stripe.com\")",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "server": "cloudflare",
+      "set-cookie": "__cf_bm=yIiebGNBXiyQFuPSi9M6uMSIJ_ASprF3xfBFNd7mLKo-1795698726.196579-1.0.1.1-RDTDOYQwAFRPXovNMUxk.OAPUNGihgwG5xUToCzMa6nnyrEclF0SDtso23.9FYzBCRORKOf6FXIhg7It1IBRW.hehKzCqp3Qf_9w2d.b8hOYm_yydz0qTP7njFOGzPXR; HttpOnly; SameSite=None; Partitioned; Secure; Path=/; Domain=openrouter.ai; Expires=Thu, 26 Nov 2026 13:42:06 GMT",
+      "transfer-encoding": "chunked",
+      "x-content-type-options": "nosniff",
+      "x-generation-id": "gen-dec-1795698726-dgaaU9mzj4u9Hi0mDkK2",
+      "x-openrouter-error-origin": "client"
+    },
+    "body": "{\"error\":{\"message\":\"Model openai/does-not-exist-hsdc does not exist\",\"code\":400}}"
+  }
+}

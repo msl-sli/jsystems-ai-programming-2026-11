@@ -1,6 +1,6 @@
-# ADR-003: AI Decision Engine — Luna Decisions Screening, Escalation to a Multimodal LLM, Chat Agent
+# ADR-003: AI Decision Engine — TypeSafe Jev Decisions Screening, Escalation to a Multimodal LLM, Chat Agent
 
-**Date:** 2026-11-25
+**Date:** 2026-11-25 (revision 2026-11-26: screening model changed to `typesafe/jev-1.14`, see §6)
 **Status:** Accepted
 **Relates to:** [`000-main-architecture.md`](000-main-architecture.md), PRD §4, §11, AC-16, AC-18..AC-28, AC-32..AC-36; policies [`return-policy.md`](../policies/return-policy.md), [`complaint-policy.md`](../policies/complaint-policy.md)
 
@@ -10,7 +10,7 @@
 
 Covers the decision pipeline behind the two processing stages and the chat:
 
-1. **Screening** — one call to the OpenRouter Decisions API with the photo and form data, using the decision model `openai/gpt-6-luna-decisions` (calibrated probabilities, no prose).
+1. **Screening** — one call to the OpenRouter Decisions API with the photo and form data, using the decision model `typesafe/jev-1.14` (TypeSafe Jev 1.14; calibrated probabilities, no prose).
 2. **Routing** — deterministic code combines date rules, screening answers and a confidence threshold to decide whether the case can be decided **without** an LLM (template message) or must be **escalated** to the multimodal LLM `openai/gpt-6-luna`.
 3. **Escalated decision** — one multimodal LLM call with photo, form, policy, deterministic facts and the screening signals, returning structured output.
 4. **Chat** — streaming answers from the LLM with a validated `changeDecision` tool.
@@ -26,7 +26,7 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 |---|---|---|
 | AI SDK Core | `/vercel/ai` (versioned: `/vercel/ai/ai_7.0.0`), also `/websites/ai-sdk_dev` | `experimental_decide` (Decisions; `experimental_evaluate` is a deprecated alias), `generateText` + `Output.object`, `streamText`, `tool`, `stopWhen`, `abortSignal`, `maxRetries`, `Experimental_DecisionRefusalError` |
 | OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | `openrouter(modelId)` chat model, `openrouter.evaluationModel(modelId)`, provider `fetch` injection, `providerOptions.openrouter` (provider routing), `providerMetadata.openrouter` (per-answer `confidence`, `usage.cost`) |
-| OpenRouter Decisions API | https://openrouter.ai/docs/api-reference/decisions and https://openrouter.ai/docs/guides/community/multimodal-decisions.md | Request/response shape, image rules for OpenAI-served decision models, refusals, alpha status |
+| OpenRouter Decisions API | https://openrouter.ai/docs/guides/features/decisions, https://openrouter.ai/docs/guides/community/multimodal-decisions.md, https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request.md; model page https://openrouter.ai/typesafe/jev-1.14 | Request/response shape, image rules for OpenAI-served decision models, refusals, alpha status |
 | OpenRouter structured outputs | https://openrouter.ai/docs/features/structured-outputs | `json_schema` support per endpoint, `require_parameters` |
 | OpenRouter provider routing | https://openrouter.ai/docs/guides/routing/provider-selection | `require_parameters`, `data_collection` |
 | Zod | `/colinhacks/zod` | LLM output schema, screening result schema |
@@ -38,14 +38,14 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 |---|---|
 | Decisions models "do not emit conversational text, explanations, or free-form prose"; they return typed answers with calibrated probabilities | OpenRouter Decisions API reference |
 | Endpoint `POST https://openrouter.ai/api/alpha/decisions`; "Alpha: the shape may change" | OpenRouter Decisions API reference |
-| Question types: `noul` (AI SDK `boolean`, probability of true), `choice` (probabilities per option), `score` (ordered levels, bucket probabilities); `box` is not supported by OpenAI | OpenRouter API reference, provider README |
-| Answers may be `refusal`; AI SDK throws `Experimental_DecisionRefusalError` with refused question IDs and does not retry | `/vercel/ai` decisions docs |
-| OpenAI-served decision models read images only as top-level items of the `state` array, as base64 data URLs (`image/png`, `image/jpeg`, `image/webp`); remote URLs are not fetched; up to 128 images | OpenRouter multimodal decisions guide |
-| The OpenRouter provider converts AI SDK typed state parts (`text`, `json`, `file`) to the Decisions format, image files to `image_url` data URLs; requires `ai` ≥ 7.0.133 for typed parts | `/openrouterteam/ai-sdk-provider` evaluation-model reference |
+| Question types: `noul` (AI SDK `boolean`, probability of true), `choice` (probabilities per option), `score` (ordered levels; continuous score 0..N−1 plus bucket probabilities); Jev 1.14 also supports `box` (not used here) | Decisions guide, API reference (read 2026-11-26) |
+| A single question may be answered `{ "type": "refusal" }` while the others resolve; the docs require treating refusal, a missing key or an unexpected type as "not answered" (fail closed). `@openrouter/ai-sdk-provider@3.1.0` has no `refusal` answer type, so such a response fails the provider's response validation (`APICallError` with the raw `responseBody`) instead of raising `Experimental_DecisionRefusalError` | Decisions guide; provider `dist/index.js` (`OpenRouterDecisionsAnswerSchema`), verified 2026-11-26 |
+| `state` is a string, JSON value or array; in an array plain strings are text items and an image item is `{ "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,…" } }`. **Jev accepts only `image/png` and `image/jpeg` data URLs** (no remote URLs, no raw base64). Jev reads images anywhere in `state`, `instructions` and `criteria`. Each image: each side **256–1,568 px**, total **78,400–2,458,624 px** (inclusive; below → 400, above → 413); decoded file ≤ 16 MiB; request body ≤ 32 MiB; **EXIF orientation is not applied**; image input is an early TypeSafe feature whose format and limits may change between Jev releases | Multimodal decisions guide, read 2026-11-26 |
+| **Correction (verified 2026-11-26 in the installed sources):** `ai@7.0.183` (`prepareDecisionState`) turns typed parts into language-model parts and `@openrouter/ai-sdk-provider@3.1.0` (`doEvaluate`) forwards `state` unchanged — the image arrives as `{ type: "file", mediaType, data }`, not as an `image_url` item. The app therefore normalizes the Decisions request body in the provider `fetch` (§3.2) | `node_modules/ai/dist/index.js`, `node_modules/@openrouter/ai-sdk-provider/dist/index.js` |
 | Probabilities and scores are rounded to two decimals; per-answer `confidence` and `usage.cost` are exposed under `providerMetadata.openrouter` | `/openrouterteam/ai-sdk-provider` README |
 | `experimental_decide` is experimental and "may change in patch releases" | `/vercel/ai` decisions docs |
 | **Correction (R2, verified in the published packages on 2026-11-26):** `@openrouter/ai-sdk-provider@3.1.0` exposes the Decisions model as `openrouter.evaluationModel(id)` (legacy `doEvaluate`); there is no `decisionModel` method. `ai@7.0.183` resolves `decisionModel ?? evaluationModel` and adapts `doEvaluate`, so `experimental_decide` works with it. Routing options go in the nested object `providerOptions.openrouter.provider` with snake_case keys (`data_collection`, `require_parameters`) for both chat and decision calls. `ai/test` exports `Experimental_DecisionMockModelV4` | `.agent-logs/hsdc-poc-R2.report.md`; npm tarballs `@openrouter/ai-sdk-provider@3.1.0`, `ai@7.0.183` |
-| The model page `openrouter.ai/openai/gpt-6-luna-decisions` returned HTTP 404 on 2026-11-25; the slug comes from the multimodal decisions guide and is not in the "popular Decisions models" list | Research note — must be verified (TAC-003-07) |
+| `typesafe/jev-1.14` is listed among the popular Decisions models (text + images, all question types); provider "TypeSafe"; responses may name a dated snapshot in `model` (example `typesafe/jev-1.14-20261014`); `~typesafe/jev-latest` is an alias and is **not** used (pinned version); not available through EU in-region routing; price on the model page $0.042/M input tokens, $0 output; requests with images run in TypeSafe's long-context mode. Data-collection policy of the TypeSafe endpoint is not stated — verified by the first real call with `data_collection: deny` (TAC-003-07) | Model page and Decisions guide, read 2026-11-26 |
 | `openai/gpt-6-luna` accepts `tools`, `tool_choice`, `response_format`, `stream`, `reasoning`; image input and `json_schema` support are not stated on its model page | OpenRouter model page — must be verified (TAC-003-07) |
 
 ---
@@ -73,9 +73,11 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 
 ### 3.2 Screening service (`server/ai/screening`)
 
-One `experimental_decide` call with `openrouter.evaluationModel(DECISIONS_MODEL)`, `maxRetries: 1`, abort after 25 s, provider routing `data_collection: deny`.
+One `experimental_decide` call with `openrouter.evaluationModel(DECISIONS_MODEL)` (`DECISIONS_MODEL=typesafe/jev-1.14`), `maxRetries: 1`, abort after 25 s, provider routing `data_collection: deny`.
 
-**State** (ordered typed parts): (1) text — fixed English instruction "Customer-submitted photo of an electronic device for a return or warranty complaint"; (2) JSON — `{ caseType, formCategory, productName }` (the description is **not** sent; description-related checks are LLM-only, see §3.4); (3) file — the compressed JPEG (`image/jpeg`).
+**Wire format (Jev):** the provider `fetch` used for every OpenRouter call is wrapped by `server/llm` `withDecisionsWireFormat`, which rewrites only the `state` array of requests to `/decisions`: text part → plain string, JSON part → its value, JPEG/PNG file part → `{ "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,…" } }`; any other part is rejected before sending. Responses are never modified.
+
+**State** (ordered typed parts, sent as `[string, object, image_url item]`): (1) text — fixed English instruction "Customer-submitted photo of an electronic device for a return or warranty complaint"; (2) JSON — `{ caseType, formCategory, productName }` (the description is **not** sent; description-related checks are LLM-only, see §3.4); (3) file — the compressed JPEG (`image/jpeg`), which the browser has already rotated by its EXIF orientation and sized to Jev's limits (each side 256–1,568 px, ≥ 78,400 px total; ADR-001, ADR-002).
 
 **Questions** — all four are **critical** (count toward the threshold):
 
@@ -95,7 +97,7 @@ Question instructions and criteria are stored in `server/ai/prompts/screening.qu
 
 An answer is **confident** when certainty ≥ `DECISIONS_CONFIDENCE_THRESHOLD` (default 0.80). The provider's per-answer `confidence` and `usage.cost` are stored in the result for logging and evaluation only.
 
-**Failures:** refusal of any question (`Experimental_DecisionRefusalError`) is not an error for the customer — the screening result marks the refused questions as `refused` (certainty 0), which forces escalation in `hybrid` and `llm-always` modes and manual review in `decisions-only` mode. If the thrown error does not carry the answers to the non-refused questions, all four questions are marked `refused`. Transport errors, timeouts and invalid responses fail the stage (`llm_failed` / `llm_timeout`, ADR-002).
+**Failures:** a refused question is not an error for the customer — the screening result marks it `refused` (certainty 0), which forces escalation in `hybrid` and `llm-always` modes and manual review in `decisions-only` mode. With provider 3.1.0 a Jev refusal surfaces as a response-validation `APICallError`; `screenCase` parses its raw `responseBody` with its own schema of the documented response, keeps the answered questions and marks refused, missing or unexpected answers as `refused` (fail closed). `Experimental_DecisionRefusalError` (no partial answers) marks all four refused. Transport errors, timeouts and other invalid responses fail the stage (`llm_failed` / `llm_timeout`, ADR-002).
 
 ### 3.3 Routing (`domain/routing`, pure)
 
@@ -118,7 +120,7 @@ Consequence (accepted by the user on 2026-11-25): in `hybrid` mode, LLM-free dec
 
 ### 3.4 Escalated decision service (`server/ai/decision`)
 
-Called when the route is `llm`. One `AbortSignal` of 50 s covers the whole stage — the first call, transport retries and the corrective retry; when it fires the stage fails with `llm_timeout`. One `generateText` call with `Output.object({ schema: DecisionOutputSchema })`, model `openrouter(LLM_MODEL)`, temperature 0, `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
+Called when the route is `llm`. One `AbortSignal` of 50 s covers the whole stage — the first call, transport retries and the corrective retry; when it fires the stage fails with `llm_timeout`. One `generateText` call with `Output.object({ schema: DecisionOutputWireSchema })` (validated afterwards with `DecisionOutputSchema`), model `openrouter(LLM_MODEL)`, **no `temperature`** (revision 2026-11-26: with `require_parameters: true` a `temperature` parameter left no `openai/gpt-6-luna` endpoint — real HTTP 404 "Filter by Parameters"; `json_schema` and image input are supported), `maxRetries: 1`, abort after 50 s, provider routing `require_parameters: true` (only providers supporting structured outputs) and `data_collection: deny`.
 
 Message content: system prompt `decision.<return|complaint>.md` (+ shared `_guardrails.md`) with the full policy text; user content with (1) deterministic facts block, (2) form data block (description quoted as customer data), (3) screening signals block — every answer with its value and certainty, the list of uncertain areas to verify first, and an instruction that signals are hints from an automated pre-check that must be verified against the photo, (4) the image as a file part (`image/jpeg`).
 
@@ -139,7 +141,7 @@ Templates copy policy facts (addresses, e-mail, deadlines) into Polish text. A u
 
 ### 3.6 Chat service (`server/ai/chat`)
 
-`streamText` with `openrouter(LLM_MODEL)`, temperature 0.3, `stopWhen` step count 3, abort after 60 s or on client disconnect, `data_collection: deny`. System prompt `chat.<return|complaint>.md` + guardrails + policy + facts (recomputed per request) + case data + screening signals (values and certainty) + LLM findings (if the case was escalated) + current decision + decision path. The canonical text of the first message is inserted as the first assistant message. The chat never receives the image (ADR-002).
+`streamText` with `openrouter(LLM_MODEL)`, no `temperature` (unsupported by the model's endpoints, see §3.4), `stopWhen` step count 3, abort after 60 s or on client disconnect, `data_collection: deny`. System prompt `chat.<return|complaint>.md` + guardrails + policy + facts (recomputed per request) + case data + screening signals (values and certainty) + LLM findings (if the case was escalated) + current decision + decision path. The canonical text of the first message is inserted as the first assistant message. The chat never receives the image (ADR-002).
 
 Tool `changeDecision` (unchanged): input `{ outcome, citedRuleIds, reason }`; execution validates with `resolveOutcome` using recomputed facts; accepted changes emit a `data-decision` part and return `{ accepted: true, category, label }`; refused proposals return `{ accepted: false, why }`. The model never writes "Zmiana decyzji" itself (ADR-001 renders the header).
 
@@ -204,11 +206,12 @@ Models, policies and clock are injected; tests never call the network or depend 
 
 ## 6. Technical Decisions
 
-### Luna Decisions screening before the LLM
+### Decisions-model screening before the LLM (TypeSafe Jev 1.14)
 **Status:** Accepted
 **Date:** 2026-11-25
 **Context:** The user wants a cheap first-pass classifier that judges photo quality, category, damage and condition with measurable certainty, passes signals to the LLM and allows skipping the LLM when certainty is high.
-**Decision:** Every case is screened by `openai/gpt-6-luna-decisions` through `experimental_decide` and `openrouter.evaluationModel`. Its calibrated probabilities feed a deterministic router; the LLM receives the signals when the case is escalated.
+**Decision:** Every case is screened by `typesafe/jev-1.14` (exact version, not the `~typesafe/jev-latest` alias) through `experimental_decide` and `openrouter.evaluationModel`, with the Decisions request body normalized to the documented wire format in the provider `fetch`. Its calibrated probabilities feed a deterministic router; the LLM receives the signals when the case is escalated.
+**Revision 2026-11-26:** the reviewer replaced `openai/gpt-6-luna-decisions` (model page unavailable during research, images only as top-level state items) with `typesafe/jev-1.14`. Consequences: JPEG/PNG only (WEBP converted in the browser as before), stricter image size window (256–1,568 px per side, ≥ 78,400 px), no EXIF handling by the API, per-question refusals, a request-format adapter for provider 3.1.0. The questions, certainty rule, threshold and routing are unchanged.
 **Rejected alternatives:**
 - LLM-only analysis (previous revision): no calibrated certainty, every case pays for an LLM call.
 - Raw HTTP calls to `/api/alpha/decisions`: duplicates what the provider already maps (typed parts, refusals, rounding, metadata).
@@ -216,7 +219,8 @@ Models, policies and clock are injected; tests never call the network or depend 
 - (+) Measurable certainty per area; LLM-free decisions for clear returns and gate failures.
 - (+) One provider, one API key, same error and retry model as the LLM.
 - (-) Two experimental surfaces (`experimental_decide`, Decisions API alpha) — mitigated by pinning exact versions and a contract test against captured responses.
-- (-) The model slug was not verifiable on its model page during research (HTTP 404); see TAC-003-07.
+- (-) The installed provider does not emit the Decisions wire format or parse refusals for this model; mitigated by the `fetch` request adapter and raw-body refusal parsing, both covered by tests and to be confirmed by real captures (TAC-003-07).
+- (-) TypeSafe marks image input as early and changeable between Jev releases; the version is pinned and captures are re-recorded on any model change.
 **Review trigger:** Decisions API leaves alpha, changes its shape, or the model becomes unavailable.
 
 ### Certainty = top probability, threshold 0.80, whole-case escalation
@@ -347,7 +351,7 @@ flowchart TD
 sequenceDiagram
   participant API as /api/cases/screening + /decision
   participant SCR as screening service
-  participant D as OpenRouter Decisions (luna-decisions)
+  participant D as OpenRouter Decisions (typesafe/jev-1.14)
   participant RT as routing (pure)
   participant TP as templates (pure)
   API->>SCR: caseInput + compressed photo
@@ -438,4 +442,4 @@ Assertions are property-based and never assume photo content (per `assets/exampl
 - TAC-003-04: Every prompt/question file has a `prompt-version` line referenced by current capture metadata.
 - TAC-003-05: The screening request never contains the customer description, `user` or `session_id`.
 - TAC-003-06: `npm run eval:decisions` produces a report covering all photos × synthetic forms × 3 modes with route rule, certainties, final category, latency and cost per run.
-- TAC-003-07: Before implementation starts, the agent confirms via `GET https://openrouter.ai/api/v1/models?output_modalities=decisions` that `openai/gpt-6-luna-decisions` exists and accepts images, and via the model list that `LLM_MODEL` supports image input, `structured_outputs` and `tools`; results are recorded in `tests/fixtures/llm-captures/README.md`. If either check fails, implementation stops and the user chooses another model.
+- TAC-003-07: Before live work starts, the agent confirms via `GET https://openrouter.ai/api/v1/models?output_modalities=decisions&input_modalities=image` that `typesafe/jev-1.14` exists and accepts images, and the first real screening capture confirms the normalized request is accepted with `data_collection: deny`, and via the model list that `LLM_MODEL` supports image input, `structured_outputs` and `tools`; results are recorded in `tests/fixtures/llm-captures/README.md`. If either check fails, implementation stops and the user chooses another model.

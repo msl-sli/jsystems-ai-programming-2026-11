@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-26T15:10:15.210Z",
+  "today": "2026-11-26",
+  "run": "chat-change",
+  "endpoint": "/api/cases/decision",
+  "requestSummary": "return smartphone purchase 2026-11-23 photo phone-2.jpeg",
+  "durationMs": 21236,
+  "packages": {
+    "next": "16.4.6",
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

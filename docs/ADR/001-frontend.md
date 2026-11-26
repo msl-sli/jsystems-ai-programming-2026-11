@@ -64,13 +64,13 @@ The reducer keeps `caseInput`, the original `File`, the compressed `CaseImage`, 
 ### Image compression (`lib/compress-image`)
 
 - Runs only after a valid submit (not on selection), inside the processing flow, invisible to the user (AC-15).
-- Decode with `createImageBitmap(file, { imageOrientation: 'from-image' })` so EXIF rotation is applied; scale so the longer edge is ≤ 1568 px (never upscale); draw on a canvas; encode JPEG quality 0.85; if the result exceeds 1.5 MB, re-encode at 0.7, then at 1280 px long edge. Output `CaseImage { mediaType: image/jpeg, base64, width, height }`.
+- Decode with `createImageBitmap(file, { imageOrientation: 'from-image' })` so EXIF rotation is applied (the Decisions model does not apply EXIF orientation); scale so the longer edge is ≤ 1568 px, and upscale small photos so that each side is ≥ 256 px and the total is ≥ 78,400 px (TypeSafe Jev image limits, ADR-003 §2); a photo whose aspect ratio cannot meet both limits fails processing (AC-17); draw on a canvas; encode JPEG quality 0.85; if the result exceeds 1.5 MB, step the quality down, then use a 1280 px long edge (still within the minimums). Output `CaseImage { mediaType: image/jpeg, base64, width, height }`.
 - Decode failure (corrupt file with a valid signature) → treated as a processing failure (banner + retry, AC-17).
 
 ### Processing screen (`features/processing`)
 
 - Replaces the form content; shows thumbnail, an indeterminate progress indicator, current stage text ("Analizujemy zdjęcie…" → "Przygotowujemy decyzję…") and "To może potrwać do minuty." (AC-14, PRD §9.2). Submit is not rendered/disabled; no cancel.
-- Orchestration: one `AbortController` with a 90 000 ms timer covers compression + both requests (AC-17). Stage `image` ("Analizujemy zdjęcie…") = `POST /api/cases/screening` (Luna Decisions). Stage `decision` ("Przygotowujemy decyzję…") = `POST /api/cases/decision` with `caseInput`, the same compressed image and the returned `screening`; the server decides whether a template or the LLM produces the decision (ADR-003). The UI behaves identically for both routes.
+- Orchestration: one `AbortController` with a 90 000 ms timer covers compression + both requests (AC-17). Stage `image` ("Analizujemy zdjęcie…") = `POST /api/cases/screening` (TypeSafe Jev Decisions). Stage `decision` ("Przygotowujemy decyzję…") = `POST /api/cases/decision` with `caseInput`, the same compressed image and the returned `screening`; the server decides whether a template or the LLM produces the decision (ADR-003). The UI behaves identically for both routes.
 - Stage text is in an `aria-live="polite"` region.
 
 ### Chat screen (`features/chat`)

@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-26T15:10:19.165Z",
+  "today": "2026-11-26",
+  "run": "chat-change",
+  "endpoint": "/api/chat",
+  "requestSummary": "chat new fact (drop) on a non-rejected return",
+  "durationMs": 3950,
+  "packages": {
+    "next": "16.4.6",
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

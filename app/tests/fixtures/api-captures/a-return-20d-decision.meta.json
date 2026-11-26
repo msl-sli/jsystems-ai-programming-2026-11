@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-26T15:02:13.318Z",
+  "today": "2026-11-26",
+  "run": "default",
+  "endpoint": "/api/cases/decision",
+  "requestSummary": "return smartphone purchase 2026-11-06 photo phone-1.jpg",
+  "durationMs": 80,
+  "packages": {
+    "next": "16.4.6",
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

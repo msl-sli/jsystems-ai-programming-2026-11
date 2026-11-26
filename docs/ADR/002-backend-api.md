@@ -52,7 +52,7 @@ Handlers run on the Node.js runtime. POST route handlers are never cached; no ro
 ### Shared server modules
 
 - `server/env` — validates required `OPENROUTER_API_KEY`, `LLM_MODEL`, `DECISIONS_MODEL`; optional `DECISION_MODE` (`hybrid` | `decisions-only` | `llm-always`, default `hybrid`), `DECISIONS_CONFIDENCE_THRESHOLD` (0.5–0.99, default 0.80), `POLICIES_DIR`, `APP_TIME_ZONE`. Invalid config → 500 `server_misconfigured`.
-- `server/llm` — one `createOpenRouter` instance (`apiKey` from env, `appName` "Hardware Service Decision Copilot"); exports `getChatModel()` = `openrouter(LLM_MODEL)` and `getDecisionModel()` = `openrouter.evaluationModel(DECISIONS_MODEL)`. Tests build the same provider with an injected `fetch` that replays captures (ADR-003 §8).
+- `server/llm` — wraps the provider `fetch` with `withDecisionsWireFormat` (requests to `/decisions` only: typed `state` parts → documented Decisions wire items, ADR-003 §3.2; responses untouched); one `createOpenRouter` instance (`apiKey` from env, `appName` "Hardware Service Decision Copilot"); exports `getChatModel()` = `openrouter(LLM_MODEL)` and `getDecisionModel()` = `openrouter.evaluationModel(DECISIONS_MODEL)`. Tests build the same provider with an injected `fetch` that replays captures (ADR-003 §8).
 - `server/policies` — loads and caches policy texts and rule IDs from `POLICIES_DIR` (headings `## RET-n`, `## CMP-n`).
 - `server/http` — envelope, size guard, logger.
 
@@ -75,7 +75,7 @@ Handlers run on the Node.js runtime. POST route handlers are never cached; no ro
 
 | Item | Contract |
 |---|---|
-| Input | `caseInput` valid per `domain/case-schema`; `caseImage.mediaType` = `image/jpeg`; base64 decodes to ≤ 1.5 MB with JPEG magic bytes; `width`/`height` 1–4096 |
+| Input | `caseInput` valid per `domain/case-schema`; `caseImage.mediaType` = `image/jpeg`; base64 decodes to ≤ 1.5 MB with JPEG magic bytes; `width`/`height` 256–1,568 and `width × height` ≥ 78,400 (TypeSafe Jev image limits, ADR-003 §2; revised 2026-11-26 from 1–4096) |
 | Body limit | 2.5 MB |
 | Output 200 | `{ screening }` |
 | Timeout | 25 s, `maxRetries: 1` |
