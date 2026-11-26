@@ -12,6 +12,7 @@ const ALLOWED_KEYS = [
   "certainties",
   "usage",
   "costCredits",
+  "calls",
   "errorCode",
   "providerMessage",
 ] as const;

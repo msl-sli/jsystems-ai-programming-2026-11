@@ -26,6 +26,7 @@ import { loadPolicies } from "../policies";
 import { LlmFailedError } from "./errors";
 import { DECISION_PROMPT_VERSIONS, decideWithLlm } from "./decision";
 import { screenCase } from "./screening";
+import type { LlmCallTelemetry } from "./telemetry";
 
 const CAPTURES = path.resolve(process.cwd(), "tests/fixtures/llm-captures");
 const cap = (dir: string, name: string) =>
@@ -146,7 +147,11 @@ const SPECS = {
   },
 } satisfies Record<string, Spec>;
 
-async function decide(spec: Spec, captureNames: string[]) {
+async function decide(
+  spec: Spec,
+  captureNames: string[],
+  onTelemetry?: (call: LlmCallTelemetry) => void,
+) {
   const m = metaOf("decision", spec.name);
   const today = todayInTimeZone("Europe/Warsaw", new Date(m.capturedAt));
   const caseInput = spec.caseInput(today);
@@ -175,6 +180,7 @@ async function decide(spec: Spec, captureNames: string[]) {
       today,
       mode: spec.mode,
       signal: AbortSignal.timeout(20_000),
+      ...(onTelemetry ? { onTelemetry } : {}),
     },
   );
   return { replay, result, caseInput, policies };
@@ -215,6 +221,37 @@ describe("decideWithLlm replay of real captures", () => {
         expect(decision.category).toBe("return_rejected");
     });
   }
+
+  it("reports one telemetry call with the capture's provider", async () => {
+    const spec: Spec = SPECS.returnDescription;
+    const calls: LlmCallTelemetry[] = [];
+    const { result } = await decide(spec, [spec.name], (c) => calls.push(c));
+    await result;
+    const body = JSON.parse(
+      JSON.parse(readFileSync(cap("decision", spec.name), "utf8")).response.body,
+    ) as { provider: string };
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      endpoint: "chat/completions",
+      modelId: metaOf("decision", spec.name).modelId,
+      provider: body.provider,
+    });
+    expect(calls[0]!.provider).toBeTruthy();
+    expect(calls[0]!.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reports two telemetry calls for the corrective retry", async () => {
+    const spec: Spec = SPECS.invalidFirst;
+    const calls: LlmCallTelemetry[] = [];
+    const { result } = await decide(
+      spec,
+      [spec.name, `${spec.name}-2`],
+      (c) => calls.push(c),
+    );
+    await expect(result).rejects.toBeInstanceOf(LlmFailedError);
+    expect(calls).toHaveLength(2);
+    for (const c of calls) expect(c.provider).toBeTruthy();
+  });
 
   it("invalid first answer: corrective retry (2 calls), then LlmFailedError", async () => {
     const spec: Spec = SPECS.invalidFirst;

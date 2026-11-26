@@ -51,7 +51,7 @@ export function mapError(error: unknown): { status: number; code: ErrorCode } {
 export async function handle(
   endpoint: string,
   deps: ApiDeps,
-  run: (env: ServerEnv) => Promise<HandlerOutcome>,
+  run: (env: ServerEnv, ctx: { requestId: string }) => Promise<HandlerOutcome>,
 ): Promise<Response> {
   const requestId = crypto.randomUUID();
   const started = performance.now();
@@ -59,7 +59,7 @@ export async function handle(
   let fields: LogFields = {};
   let response: Response;
   try {
-    const outcome = await run(deps.getEnv());
+    const outcome = await run(deps.getEnv(), { requestId });
     response = outcome.response;
     status = response.status;
     fields = outcome.log ?? {};

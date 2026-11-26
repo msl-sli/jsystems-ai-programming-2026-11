@@ -5,6 +5,7 @@ import {
   type ScreeningResult,
 } from "@/domain/contracts";
 import { screenCase } from "@/server/ai/screening";
+import { totalCost, type LlmCallTelemetry } from "@/server/ai/telemetry";
 import { getDecisionModel } from "@/server/llm";
 import {
   defaultDeps,
@@ -45,7 +46,9 @@ export function createScreeningHandler(deps: ApiDeps = defaultDeps) {
         { image: true },
       );
       const provider = deps.createProvider(env);
+      const calls: LlmCallTelemetry[] = [];
       const screening = await screenCase(caseInput, caseImage, {
+        onTelemetry: (call) => calls.push(call),
         decisionModel: getDecisionModel(provider, env.decisionsModel),
         signal: timeoutSignal(request, deps.timeoutMs ?? TIMEOUT_MS),
         threshold: env.confidenceThreshold,
@@ -56,7 +59,8 @@ export function createScreeningHandler(deps: ApiDeps = defaultDeps) {
         log: {
           models: { decisions: screening.model },
           certainties: certaintiesOf(screening),
-          costCredits: screening.costCredits,
+          costCredits: calls.length ? totalCost(calls) : screening.costCredits,
+          ...(calls.length ? { calls } : {}),
         },
       };
     });

@@ -21,6 +21,7 @@ import { ServerConfigError } from "../env";
 import { OPENROUTER_PRIVACY_OPTIONS, type getDecisionModel } from "../llm";
 import { toLlmError } from "./errors";
 import { loadPromptFile } from "./prompt-files";
+import { buildTelemetry, type OnTelemetry } from "./telemetry";
 
 // ------------------------------------------------------------------ questions (from the versioned md file)
 
@@ -205,6 +206,8 @@ export interface ScreenCaseOptions {
   threshold: number;
   /** Monotonic clock in milliseconds; injectable for tests. */
   now?: () => number;
+  /** Receives one metadata-only record per Decisions call. */
+  onTelemetry?: OnTelemetry;
 }
 
 type Answer<K extends ScreeningQuestionId> = ScreeningAnswers[K];
@@ -411,6 +414,14 @@ export function foldRefusalResponse(
   };
 }
 
+function safeJson(text: string | undefined): unknown {
+  try {
+    return text ? JSON.parse(text) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function screenCase(
   caseInput: CaseInput,
   caseImage: CaseImage,
@@ -435,6 +446,17 @@ export async function screenCase(
     latencyMs: Math.max(0, Math.round(now() - started)),
   });
 
+  const report = (providerMetadata: unknown, rawBody: unknown) =>
+    options.onTelemetry?.(
+      buildTelemetry({
+        endpoint: "alpha/decisions",
+        modelId: model,
+        latencyMs: now() - started,
+        providerMetadata,
+        rawBody,
+      }),
+    );
+
   let result;
   try {
     result = await experimental_decide({
@@ -455,12 +477,16 @@ export async function screenCase(
     }
     if (APICallError.isInstance(error)) {
       const folded = foldRefusalResponse(error.responseBody, options.threshold);
-      if (folded) return finish(folded.answers, folded.costCredits);
+      if (folded) {
+        report(undefined, safeJson(error.responseBody));
+        return finish(folded.answers, folded.costCredits);
+      }
     }
     throw toLlmError(error, options.signal);
   }
 
   const metadata = result.providerMetadata;
+  report(metadata, result.response?.body);
   const build = <K extends ScreeningQuestionId>(
     id: K,
     value: Answer<K>["value"],

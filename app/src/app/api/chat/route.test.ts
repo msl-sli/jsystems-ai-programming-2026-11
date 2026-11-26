@@ -387,6 +387,30 @@ describe("POST /api/chat", () => {
       replay.assertAllConsumed();
     });
 
+    it("writes a second metadata line with per-step calls when the stream finishes", async () => {
+      const { handler, request } = setup("chat-new-fact-change-decision", [
+        "chat-new-fact-change-decision",
+        "chat-new-fact-change-decision-2",
+      ]);
+      const response = await handler(request);
+      await response.text();
+      const lines = info.mock.calls.map(
+        (c: unknown[]) => JSON.parse(c[0] as string) as Record<string, unknown>,
+      );
+      expect(lines).toHaveLength(2);
+      expect(lines[0]!.requestId).toBe(lines[1]!.requestId);
+      const finish = lines[1]!;
+      expect(finish.endpoint).toBe("/api/chat");
+      const calls = finish.calls as { provider: string; endpoint: string }[];
+      expect(calls).toHaveLength(2);
+      for (const c of calls) {
+        expect(c.endpoint).toBe("chat/completions");
+        expect(c.provider).toBeTruthy();
+      }
+      expect(typeof finish.costCredits).toBe("number");
+      expect(JSON.stringify(finish)).not.toMatch(/pęknięcie|podłog|text/);
+    });
+
     it("emits data-decision before the text for the new-fact capture (two outbound requests)", async () => {
       const { handler, request, replay } = setup(
         "chat-new-fact-change-decision",

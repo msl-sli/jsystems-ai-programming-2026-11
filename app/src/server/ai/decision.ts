@@ -32,6 +32,7 @@ import { OPENROUTER_STRUCTURED_OPTIONS, type getChatModel } from "../llm";
 import type { Policies } from "../policies";
 import { LlmFailedError, LlmTimeoutError, toLlmError } from "./errors";
 import { loadPromptFile } from "./prompt-files";
+import { buildTelemetry, type OnTelemetry } from "./telemetry";
 
 // ------------------------------------------------------------------ prompt files
 
@@ -193,6 +194,8 @@ export interface DecideWithLlmOptions {
   signal: AbortSignal;
   /** Defaults to DECISION_STAGE_TIMEOUT_MS. */
   timeoutMs?: number;
+  /** Receives one metadata-only record per generateText attempt. */
+  onTelemetry?: OnTelemetry;
 }
 
 export interface LlmDecision {
@@ -305,6 +308,7 @@ export async function decideWithLlm(
         "The decision stage was aborted before the call",
       );
     let result;
+    const startedAt = performance.now();
     try {
       result = await generateText({
         model: options.model,
@@ -315,6 +319,16 @@ export async function decideWithLlm(
         abortSignal: signal,
         providerOptions: OPENROUTER_STRUCTURED_OPTIONS,
       });
+      options.onTelemetry?.(
+        buildTelemetry({
+          endpoint: "chat/completions",
+          modelId: options.model.modelId,
+          latencyMs: performance.now() - startedAt,
+          providerMetadata: result.providerMetadata,
+          inputTokens: result.usage?.inputTokens,
+          outputTokens: result.usage?.outputTokens,
+        }),
+      );
       const output = result.output as DecisionOutput;
       return validate(output, route, caseInput, facts, policy.ruleIds);
     } catch (error) {

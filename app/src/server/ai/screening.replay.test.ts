@@ -13,6 +13,7 @@ import {
 import { createReplayFetch } from "@/test/replay-fetch";
 import { createLlmProvider, getDecisionModel } from "../llm";
 import { LlmFailedError, LlmTimeoutError } from "./errors";
+import type { LlmCallTelemetry } from "./telemetry";
 import { SCREENING_PROMPT_VERSION, screenCase } from "./screening";
 
 const DIR = path.resolve(
@@ -34,7 +35,12 @@ async function run(
   name: string,
   photoIdx: number,
   caseType: "return" | "complaint",
-  opts: { delayMs?: number; signal?: AbortSignal; modelId?: string } = {},
+  opts: {
+    delayMs?: number;
+    signal?: AbortSignal;
+    modelId?: string;
+    onTelemetry?: (call: LlmCallTelemetry) => void;
+  } = {},
 ) {
   const replay = createReplayFetch({
     captures: [file(name)],
@@ -51,6 +57,7 @@ async function run(
       ),
       signal: opts.signal ?? AbortSignal.timeout(20_000),
       threshold: 0.8,
+      ...(opts.onTelemetry ? { onTelemetry: opts.onTelemetry } : {}),
     },
   );
   return { replay, result };
@@ -99,6 +106,26 @@ describe("screening replay of real captures", () => {
       usage.cost_details.upstream_inference_cost,
     );
     expect(screening.costCredits).toBeGreaterThan(0);
+  });
+
+  it("reports one telemetry call: provider, endpoint, BYOK upstream cost", async () => {
+    const calls: LlmCallTelemetry[] = [];
+    const name = "screening-phone-1-return";
+    const { result } = await run(name, 0, "return", {
+      onTelemetry: (c) => calls.push(c),
+    });
+    await result;
+    const body = JSON.parse(read(name).response.body) as { provider: string };
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      endpoint: "alpha/decisions",
+      modelId: meta(name).modelId,
+      provider: body.provider,
+    });
+    expect(calls[0]!.provider).toBe("TypeSafe");
+    expect(calls[0]!.costCredits).toBeGreaterThan(0);
+    expect(calls[0]!.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify(calls[0])).not.toMatch(/base64|answers/);
   });
 
   it("maps the real 401 to LlmFailedError", async () => {

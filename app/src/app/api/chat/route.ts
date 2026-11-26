@@ -7,6 +7,8 @@ import {
 } from "@/domain/contracts";
 import { todayInTimeZone } from "@/domain/dates";
 import { streamChat } from "@/server/ai/chat";
+import { totalCost, type LlmCallTelemetry } from "@/server/ai/telemetry";
+import { logRequest } from "@/server/http/logger";
 import type { ChatUIMessage } from "@/server/ai/chat-types";
 import { getChatModel } from "@/server/llm";
 import { loadPolicies } from "@/server/policies";
@@ -73,7 +75,7 @@ const ChatRequestSchema = z
 
 export function createChatHandler(deps: ApiDeps = defaultDeps) {
   return (request: Request): Promise<Response> =>
-    handle(ENDPOINT, deps, async (env) => {
+    handle(ENDPOINT, deps, async (env, { requestId }) => {
       const { caseContext, messages } = await readValidatedBody(
         request,
         BODY_LIMIT_BYTES,
@@ -82,6 +84,8 @@ export function createChatHandler(deps: ApiDeps = defaultDeps) {
       );
       const policies = loadPolicies(env.policiesDir);
       const provider = deps.createProvider(env);
+      const calls: LlmCallTelemetry[] = [];
+      const started = performance.now();
       // Streaming errors are masked inside streamChat (chat_failed); this log line is written when the stream starts.
       const response = streamChat(
         caseContext,
@@ -91,6 +95,16 @@ export function createChatHandler(deps: ApiDeps = defaultDeps) {
           policies,
           today: todayInTimeZone(env.appTimeZone, deps.now()),
           signal: request.signal,
+          onTelemetry: (call) => calls.push(call),
+          // Second metadata line once the stream is done: per-step provider, latency and cost (ADR-002 §3).
+          onFinish: () =>
+            logRequest({
+              requestId,
+              endpoint: ENDPOINT,
+              durationMs: Math.round(performance.now() - started),
+              calls,
+              costCredits: totalCost(calls),
+            }),
         },
       );
       return { response, log: { models: { chat: env.llmModel } } };

@@ -382,6 +382,24 @@ describe("POST /api/cases/screening", () => {
       expect(replay.calls).toBe(1);
     });
 
+    it("logs provider, endpoint and BYOK cost of the call without content", async () => {
+      const { response } = await run("screening-phone-1-return");
+      expect(response.status).toBe(200);
+      const line = info.mock.calls.at(-1)?.[0] as string;
+      const parsed = JSON.parse(line) as {
+        calls: { endpoint: string; provider: string; costCredits: number }[];
+        costCredits: number;
+      };
+      expect(parsed.calls).toHaveLength(1);
+      expect(parsed.calls[0]).toMatchObject({
+        endpoint: "alpha/decisions",
+        provider: "TypeSafe",
+      });
+      expect(parsed.calls[0]!.costCredits).toBeGreaterThan(0);
+      expect(parsed.costCredits).toBe(parsed.calls[0]!.costCredits);
+      expect(line).not.toMatch(/base64|\/9j\//);
+    });
+
     it("502 llm_failed (retryable, no provider text) for the real 401", async () => {
       const { response, replay } = await run("screening-error-invalid-key");
       await expectError(response, 502, "llm_failed");

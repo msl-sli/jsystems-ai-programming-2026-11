@@ -47,6 +47,26 @@ describe("logRequest", () => {
     expect(line).not.toMatch(/SECRET/);
   });
 
+  it("keeps the calls array (metadata only) and still drops content keys", () => {
+    const call = {
+      endpoint: "chat/completions",
+      modelId: "a/b",
+      provider: "Azure",
+      latencyMs: 5,
+      costCredits: 0.001,
+    };
+    const { line, parsed } = capture({
+      requestId: "r1",
+      calls: [call],
+      costCredits: 0.001,
+      messages: ["SECRET-MSG"],
+      text: "SECRET-TEXT",
+    });
+    expect(parsed.calls).toEqual([call]);
+    expect(Object.keys(parsed).sort()).toEqual(["calls", "costCredits", "requestId"]);
+    expect(line).not.toMatch(/SECRET/);
+  });
+
   it("truncates providerMessage to 200 chars", () => {
     const { parsed } = capture({ requestId: "r", providerMessage: "x".repeat(500) });
     expect((parsed.providerMessage as string).length).toBe(200);

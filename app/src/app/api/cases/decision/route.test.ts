@@ -510,6 +510,21 @@ describe("POST /api/cases/decision", () => {
       replay.assertAllConsumed();
     });
 
+    it("logs one entry in calls for the single llm call, with provider and total cost", async () => {
+      const { response } = await run(returnWithDescription, [
+        "decision-return-description",
+      ]);
+      expect(response.status).toBe(200);
+      const parsed = JSON.parse(info.mock.calls.at(-1)?.[0] as string) as {
+        calls: { endpoint: string; provider: string }[];
+        costCredits: number;
+      };
+      expect(parsed.calls).toHaveLength(1);
+      expect(parsed.calls[0]!.endpoint).toBe("chat/completions");
+      expect(parsed.calls[0]!.provider).toBeTruthy();
+      expect(typeof parsed.costCredits).toBe("number");
+    });
+
     it("502 llm_failed after the corrective retry (two outbound requests)", async () => {
       const { response, replay } = await run(
         returnWithDescription,

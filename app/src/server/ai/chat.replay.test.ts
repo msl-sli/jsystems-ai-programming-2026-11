@@ -21,6 +21,7 @@ import { createLlmProvider, getChatModel } from "../llm";
 import { loadPolicies } from "../policies";
 import { CHAT_PROMPT_VERSION, streamChat } from "./chat";
 import type { ChatUIMessage } from "./chat-types";
+import type { LlmCallTelemetry } from "./telemetry";
 
 const CAPTURES = path.resolve(process.cwd(), "tests/fixtures/llm-captures");
 const CHAT = path.join(CAPTURES, "chat");
@@ -104,6 +105,7 @@ interface StreamEvent {
 async function replayChat(
   names: string[],
   userText: string,
+  onTelemetry?: (call: LlmCallTelemetry) => void,
 ): Promise<{ events: StreamEvent[]; calls: number; text: string }> {
   const m = metaOf(names[0]!);
   const today = todayInTimeZone("Europe/Warsaw", new Date(m.capturedAt));
@@ -123,6 +125,7 @@ async function replayChat(
     policies,
     today,
     signal: AbortSignal.timeout(20_000),
+    ...(onTelemetry ? { onTelemetry } : {}),
   });
   const body = await response.text();
   replay.assertAllConsumed();
@@ -173,6 +176,22 @@ describe("streamChat replay of real captures", () => {
     expect(categoryBelongsToCaseType("complaint", data.category)).toBe(true);
     expect(data.label).toBe(DECISION_LABELS[data.category]);
     expect(text.length).toBeGreaterThan(0);
+  });
+
+  it("chat-new-fact-change-decision: telemetry for both model steps", async () => {
+    const calls: LlmCallTelemetry[] = [];
+    await replayChat(
+      ["chat-new-fact-change-decision", "chat-new-fact-change-decision-2"],
+      "Urządzenie spadło na podłogę i od tego czasu ma pęknięcie.",
+      (c) => calls.push(c),
+    );
+    expect(calls).toHaveLength(2);
+    for (const c of calls) {
+      expect(c.endpoint).toBe("chat/completions");
+      expect(c.modelId).toBe(metaOf("chat-new-fact-change-decision").modelId);
+      expect(c.provider).toBeTruthy();
+      expect(c.latencyMs).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it("chat-pressure: no data-decision", async () => {

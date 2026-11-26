@@ -9,6 +9,7 @@ import { computeFacts, todayInTimeZone } from "@/domain/dates";
 import { routeCase } from "@/domain/routing";
 import { decideWithTemplate } from "@/domain/templates";
 import { decideWithLlm } from "@/server/ai/decision";
+import { totalCost, type LlmCallTelemetry } from "@/server/ai/telemetry";
 import { getChatModel } from "@/server/llm";
 import { loadPolicies } from "@/server/policies";
 import {
@@ -53,6 +54,7 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
 
       let result: DecisionResponse;
       let models: { chat: string } | undefined;
+      const calls: LlmCallTelemetry[] = [];
       if (route.kind === "template") {
         result = decideWithTemplate(
           route,
@@ -70,6 +72,7 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
           today,
           mode: env.decisionMode,
           signal: timeoutSignal(request, deps.timeoutMs ?? TIMEOUT_MS),
+          onTelemetry: (call) => calls.push(call),
         });
         models = { chat: env.llmModel };
       }
@@ -82,6 +85,7 @@ export function createDecisionHandler(deps: ApiDeps = defaultDeps) {
           routeRule: body.decision.routeRule,
           mode: body.decision.mode,
           ...(models ? { models } : {}),
+          ...(calls.length ? { calls, costCredits: totalCost(calls) } : {}),
         },
       };
     });

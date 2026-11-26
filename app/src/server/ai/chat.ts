@@ -28,6 +28,7 @@ import { OPENROUTER_PRIVACY_OPTIONS } from "../llm";
 import type { Policies } from "../policies";
 import type { ChatUIMessage } from "./chat-types";
 import { DEFAULT_PROMPTS_DIR, loadPromptFile } from "./prompt-files";
+import { buildTelemetry, type OnTelemetry } from "./telemetry";
 
 /** Version of `chat.return.md` / `chat.complaint.md`; recorded in capture metadata. */
 export const CHAT_PROMPT_VERSION = "2026-11-26.1";
@@ -219,6 +220,10 @@ export interface StreamChatOptions extends ChatPromptOptions {
   model: LanguageModel;
   /** Client disconnect signal; combined with the 60 s timeout. */
   signal?: AbortSignal;
+  /** Receives one metadata-only record per model step, when the step finishes. */
+  onTelemetry?: OnTelemetry;
+  /** Called once when the UI stream has finished, after every step's telemetry. */
+  onFinish?: () => void;
 }
 
 /**
@@ -236,6 +241,7 @@ export function streamChat(
     ...(options.signal ? [options.signal] : []),
   ]);
   const mask = () => CHAT_ERROR_CODE;
+  let stepStarted = performance.now();
 
   const stream = createUIMessageStream<ChatUIMessage>({
     execute: async ({ writer }) => {
@@ -248,6 +254,7 @@ export function streamChat(
           onAccepted: (data) => writer.write({ type: "data-decision", data }),
         }),
       };
+      stepStarted = performance.now();
       const result = streamText({
         model: options.model,
         system: buildChatSystemPrompt(context, options),
@@ -257,6 +264,20 @@ export function streamChat(
         maxRetries: 1, // TAC-003-03
         abortSignal,
         providerOptions: OPENROUTER_PRIVACY_OPTIONS,
+        onStepEnd: (step) => {
+          const now = performance.now();
+          options.onTelemetry?.(
+            buildTelemetry({
+              endpoint: "chat/completions",
+              modelId: step.model.modelId,
+              latencyMs: now - stepStarted,
+              providerMetadata: step.providerMetadata,
+              inputTokens: step.usage.inputTokens,
+              outputTokens: step.usage.outputTokens,
+            }),
+          );
+          stepStarted = now;
+        },
         // Provider text may echo customer data: never log or forward it.
         onError: () => undefined,
       });
@@ -272,6 +293,7 @@ export function streamChat(
       );
     },
     onError: mask,
+    onFinish: () => options.onFinish?.(),
   });
   return createUIMessageStreamResponse({ stream });
 }
