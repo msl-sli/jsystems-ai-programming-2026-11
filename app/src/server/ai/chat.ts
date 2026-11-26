@@ -264,6 +264,9 @@ export function streamChat(
         toUIMessageStream<typeof tools, ChatUIMessage>({
           stream: result.stream,
           tools,
+          // Text parts only (ADR-002 §5): the model's reasoning reached the browser in the real
+          // I4 run (api-captures/c-chat-question.json) and must never be forwarded.
+          sendReasoning: false,
           onError: mask,
         }),
       );

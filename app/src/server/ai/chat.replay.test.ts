@@ -150,6 +150,15 @@ describe("streamChat replay of real captures", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
+  it("never forwards the model's reasoning to the client (ADR-002: text parts only)", async () => {
+    // The real capture contains reasoning deltas from the provider.
+    const { events } = await replayChat(
+      ["chat-question-purchase-date"],
+      "Jaką datę zakupu podałem w zgłoszeniu?",
+    );
+    expect(types(events).filter((t) => t.startsWith("reasoning"))).toEqual([]);
+  });
+
   it("chat-new-fact-change-decision: data-decision precedes the follow-up text", async () => {
     const { events, calls, text } = await replayChat(
       ["chat-new-fact-change-decision", "chat-new-fact-change-decision-2"],
