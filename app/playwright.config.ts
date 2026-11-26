@@ -1,13 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = "http://localhost:3000";
+// Test-runner setting only (no app code path): lets E2E run beside another server on :3000.
+const port = process.env.E2E_PORT ?? "3000";
+const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: "tests/e2e",
   forbidOnly: !!process.env.CI,
   reporter: [["list"], ["html", { open: "never" }]],
   webServer: {
-    command: "npm run build && npm run start",
+    command: `npm run build && npx next start --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
