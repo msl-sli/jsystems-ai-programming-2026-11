@@ -251,11 +251,27 @@ function providerConfidenceOf(
     : undefined;
 }
 
-function costOf(metadata: unknown): number | undefined {
+function isCost(value: unknown): value is number {
+  return typeof value === "number" && value >= 0;
+}
+
+/**
+ * Cost in OpenRouter credits. With a BYOK key `usage.cost` is 0 and the real cost is
+ * `usage.cost_details.upstream_inference_cost`; the provider metadata drops `cost_details`, so it is read from the raw
+ * response body (`result.response.body`).
+ */
+function costOf(metadata: unknown, responseBody: unknown): number | undefined {
+  const usage = (
+    responseBody as { usage?: Record<string, unknown> } | undefined
+  )?.usage;
+  const upstream = (
+    usage?.cost_details as { upstream_inference_cost?: unknown }
+  )?.upstream_inference_cost;
+  if (usage?.is_byok === true && isCost(upstream)) return upstream;
   const value = (
     metadata as { openrouter?: { usage?: { cost?: unknown } } } | undefined
   )?.openrouter?.usage?.cost;
-  return typeof value === "number" && value >= 0 ? value : undefined;
+  return isCost(value) ? value : undefined;
 }
 
 /**
@@ -493,6 +509,6 @@ export async function screenCase(
         bucketProbabilities,
       ),
     },
-    costOf(metadata),
+    costOf(metadata, result.response?.body),
   );
 }
