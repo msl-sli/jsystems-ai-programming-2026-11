@@ -11,7 +11,9 @@ export default defineConfig({
   webServer: {
     command: `npm run build && npx next start --port ${port}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a server for live runs that need their own mode or key (plan §7a, T61).
+    reuseExistingServer:
+      !process.env.CI && !process.env.DECISION_MODE && process.env.LIVE_INVALID_KEY_RUN !== "1",
     timeout: 180_000,
   },
   use: { baseURL },
