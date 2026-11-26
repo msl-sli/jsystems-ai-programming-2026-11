@@ -2,7 +2,13 @@ import path from "node:path";
 import { createLlmProvider } from "@/server/llm";
 import { loadServerEnv } from "@/server/env";
 import { createRecordingFetch } from "@/test/recording-fetch";
-import { scenarios } from "./capture-scenarios";
+import { scenarios as screeningAndErrorScenarios } from "./capture-scenarios";
+import { chatScenarios } from "./capture-scenarios.chat";
+import { decisionScenarios } from "./capture-scenarios.decision";
+
+// Registered here (the entry point) because the per-service files import shared helpers from
+// capture-scenarios.ts; registering them there would create an import cycle.
+const scenarios = [...screeningAndErrorScenarios, ...decisionScenarios, ...chatScenarios];
 
 const CAPTURE_ROOT = path.resolve(
   import.meta.dirname,
