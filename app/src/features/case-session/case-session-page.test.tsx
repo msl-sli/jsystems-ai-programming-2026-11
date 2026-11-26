@@ -51,6 +51,13 @@ describe("CaseSessionPage", () => {
     expect(unloadPrevented()).toBe(false);
   });
 
+  it("keeps the very first typed character after load (T60 regression)", async () => {
+    render(<CaseSessionPage />);
+    const name = screen.getByLabelText("Nazwa lub model sprzętu");
+    await userEvent.type(name, "Dell XPS");
+    expect((name as HTMLInputElement).value).toBe("Dell XPS");
+  });
+
   it("arms the guard once the user types into the form (AC-39)", async () => {
     render(<CaseSessionPage />);
     await userEvent.type(

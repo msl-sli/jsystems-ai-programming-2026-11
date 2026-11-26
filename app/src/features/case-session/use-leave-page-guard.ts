@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 
 /** AC-39: warn before reload/close while a case is in progress; nothing is registered otherwise. */
 export function useLeavePageGuard(active: boolean) {
-  useEffect(() => {
+  // Layout effect: the guard is in place before the change that armed it is painted.
+  useLayoutEffect(() => {
     if (!active) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();

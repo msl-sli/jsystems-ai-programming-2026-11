@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { CaseForm } from "@/features/case-form";
 import { ChatScreen } from "@/features/chat";
 import { ProcessingController, ProcessingScreen } from "@/features/processing";
@@ -15,10 +15,15 @@ export const PROCESSING_ERROR_BANNER =
 export function CaseSessionView() {
   const { state, dispatch, submit } = useCaseSession();
   const today = useBrowserToday();
-  // The form owns its field values, so user input is detected from bubbling change/input events.
-  // Keyed by resetCount so a new case starts clean.
+  // The form reports entered values through onDirtyChange. Keyed by resetCount so a new case
+  // starts clean.
   const [dirtyAt, setDirtyAt] = useState<number | null>(null);
   const formDirty = dirtyAt === state.resetCount;
+  const resetCount = state.resetCount;
+  const onDirtyChange = useCallback(
+    (dirty: boolean) => setDirtyAt(dirty ? resetCount : null),
+    [resetCount],
+  );
 
   useLeavePageGuard(
     state.status !== "form" ||
@@ -39,13 +44,12 @@ export function CaseSessionView() {
     return <ChatScreen />;
   }
 
-  const markDirty = () => setDirtyAt(state.resetCount);
   if (today === null) {
     // Server prerender: the form needs the browser's date, so it renders after hydration.
     return <div aria-busy="true" className="min-h-[60vh]" />;
   }
   return (
-    <div onChangeCapture={markDirty} onInputCapture={markDirty}>
+    <div>
       <CaseForm
         initialValues={state.caseInput ?? undefined}
         initialPhoto={state.photo}
@@ -53,6 +57,7 @@ export function CaseSessionView() {
         onRetry={() => dispatch({ type: "retry" })}
         onSubmit={submit}
         today={today}
+        onDirtyChange={onDirtyChange}
       />
     </div>
   );

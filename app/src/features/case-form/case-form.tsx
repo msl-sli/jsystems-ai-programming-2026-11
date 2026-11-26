@@ -1,7 +1,13 @@
 "use client";
 
 import { format } from "date-fns";
-import { useId, useMemo, useRef, useState } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -58,6 +64,12 @@ export type CaseFormProps = {
   onRetry?: () => void;
   /** `YYYY-MM-DD` used for the purchase date bounds. Defaults to the browser's local date. */
   today?: string;
+  /**
+   * Reports whether the customer has entered anything (a field or a photo), for the leave-page
+   * guard (AC-39). Called from an effect, never during an input event: a parent state update
+   * inside the event made React restore the controlled input and drop the first keystroke.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const EMPTY_VALUES: CaseFormValues = {
@@ -82,6 +94,7 @@ export function CaseForm({
   bannerError = null,
   onRetry,
   today,
+  onDirtyChange,
 }: CaseFormProps) {
   const id = useId();
   const [effectiveToday] = useState(
@@ -101,7 +114,7 @@ export function CaseForm({
     control,
     handleSubmit,
     trigger,
-    formState: { errors, touchedFields },
+    formState: { errors, touchedFields, isDirty },
   } = useForm<CaseFormValues, unknown, CaseInput>({
     resolver,
     mode: "onTouched",
@@ -110,6 +123,12 @@ export function CaseForm({
   });
 
   const [photo, setPhoto] = useState<File | null>(initialPhoto);
+
+  const dirty = isDirty || photo !== null;
+  // Layout effect so the leave-page guard is armed before the entered value is painted.
+  useLayoutEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoButtonRef = useRef<HTMLButtonElement>(null);
 
