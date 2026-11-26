@@ -20,7 +20,7 @@ Not covered: UI (ADR-001), screening questions, routing and prompts (ADR-003), p
 |---|---|---|
 | Next.js | `/vercel/next.js` (versioned: `/vercel/next.js/v16.4.5`) | Route handlers, `maxDuration` |
 | AI SDK | `/vercel/ai` | `createUIMessageStream`, `createUIMessageStreamResponse`, `toUIMessageStream`, `convertToModelMessages` (async in v7), error masking |
-| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | `createOpenRouter` (`apiKey`, `appName`, `fetch`), `openrouter(id)`, `openrouter.decisionModel(id)`, `providerOptions.openrouter` |
+| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | `createOpenRouter` (`apiKey`, `appName`, `fetch`), `openrouter(id)`, `openrouter.evaluationModel(id)`, `providerOptions.openrouter` |
 | OpenRouter docs | https://openrouter.ai/docs | Base URL `https://openrouter.ai/api/v1`, Decisions endpoint `/api/alpha/decisions`, error codes |
 | Zod | `/colinhacks/zod` | Request validation |
 | `server-only` | https://www.npmjs.com/package/server-only | Keep server modules out of client bundles |
@@ -50,7 +50,7 @@ Handlers run on the Node.js runtime. POST route handlers are never cached; no ro
 ### Shared server modules
 
 - `server/env` — validates required `OPENROUTER_API_KEY`, `LLM_MODEL`, `DECISIONS_MODEL`; optional `DECISION_MODE` (`hybrid` | `decisions-only` | `llm-always`, default `hybrid`), `DECISIONS_CONFIDENCE_THRESHOLD` (0.5–0.99, default 0.80), `POLICIES_DIR`, `APP_TIME_ZONE`. Invalid config → 500 `server_misconfigured`.
-- `server/llm` — one `createOpenRouter` instance (`apiKey` from env, `appName` "Hardware Service Decision Copilot"); exports `getChatModel()` = `openrouter(LLM_MODEL)` and `getDecisionModel()` = `openrouter.decisionModel(DECISIONS_MODEL)`. Tests build the same provider with an injected `fetch` that replays captures (ADR-003 §8).
+- `server/llm` — one `createOpenRouter` instance (`apiKey` from env, `appName` "Hardware Service Decision Copilot"); exports `getChatModel()` = `openrouter(LLM_MODEL)` and `getDecisionModel()` = `openrouter.evaluationModel(DECISIONS_MODEL)`. Tests build the same provider with an injected `fetch` that replays captures (ADR-003 §8).
 - `server/policies` — loads and caches policy texts and rule IDs from `POLICIES_DIR` (headings `## RET-n`, `## CMP-n`).
 - `server/http` — envelope, size guard, logger.
 
@@ -123,7 +123,7 @@ Client compression ≤ 3 s + screening ≤ 25 s + escalated decision ≤ 50 s = 
 **Status:** Accepted
 **Date:** 2026-11-25
 **Context:** OpenRouter offers chat completions, a stateless OpenAI-compatible Responses API (`/api/v1/responses`) and the Decisions API (`/api/alpha/decisions`).
-**Decision:** All calls go through `@openrouter/ai-sdk-provider`: `openrouter(id)` for chat/structured output and `openrouter.decisionModel(id)` for Decisions. The Responses API is not used.
+**Decision:** All calls go through `@openrouter/ai-sdk-provider`: `openrouter(id)` for chat/structured output and `openrouter.evaluationModel(id)` for Decisions. The Responses API is not used.
 **Rejected alternatives:**
 - Responses API directly: stateless like our design, but offers nothing the PRD needs (its extras are reasoning chains and web search) and would require a separate client or the OpenAI provider pointed at OpenRouter, losing `decisionModel` and `useChat` stream integration.
 - Raw HTTP for everything: re-implements streaming protocol, structured output validation and Decisions mapping.

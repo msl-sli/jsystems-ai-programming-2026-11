@@ -25,7 +25,7 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 | Library / API | Context7 ID or official docs | Used for |
 |---|---|---|
 | AI SDK Core | `/vercel/ai` (versioned: `/vercel/ai/ai_7.0.0`), also `/websites/ai-sdk_dev` | `experimental_decide` (Decisions; `experimental_evaluate` is a deprecated alias), `generateText` + `Output.object`, `streamText`, `tool`, `stopWhen`, `abortSignal`, `maxRetries`, `Experimental_DecisionRefusalError` |
-| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | `openrouter(modelId)` chat model, `openrouter.decisionModel(modelId)`, provider `fetch` injection, `providerOptions.openrouter` (provider routing), `providerMetadata.openrouter` (per-answer `confidence`, `usage.cost`) |
+| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | `openrouter(modelId)` chat model, `openrouter.evaluationModel(modelId)`, provider `fetch` injection, `providerOptions.openrouter` (provider routing), `providerMetadata.openrouter` (per-answer `confidence`, `usage.cost`) |
 | OpenRouter Decisions API | https://openrouter.ai/docs/api-reference/decisions and https://openrouter.ai/docs/guides/community/multimodal-decisions.md | Request/response shape, image rules for OpenAI-served decision models, refusals, alpha status |
 | OpenRouter structured outputs | https://openrouter.ai/docs/features/structured-outputs | `json_schema` support per endpoint, `require_parameters` |
 | OpenRouter provider routing | https://openrouter.ai/docs/guides/routing/provider-selection | `require_parameters`, `data_collection` |
@@ -44,6 +44,7 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 | The OpenRouter provider converts AI SDK typed state parts (`text`, `json`, `file`) to the Decisions format, image files to `image_url` data URLs; requires `ai` ≥ 7.0.133 for typed parts | `/openrouterteam/ai-sdk-provider` evaluation-model reference |
 | Probabilities and scores are rounded to two decimals; per-answer `confidence` and `usage.cost` are exposed under `providerMetadata.openrouter` | `/openrouterteam/ai-sdk-provider` README |
 | `experimental_decide` is experimental and "may change in patch releases" | `/vercel/ai` decisions docs |
+| **Correction (R2, verified in the published packages on 2026-11-26):** `@openrouter/ai-sdk-provider@3.1.0` exposes the Decisions model as `openrouter.evaluationModel(id)` (legacy `doEvaluate`); there is no `decisionModel` method. `ai@7.0.183` resolves `decisionModel ?? evaluationModel` and adapts `doEvaluate`, so `experimental_decide` works with it. Routing options go in the nested object `providerOptions.openrouter.provider` with snake_case keys (`data_collection`, `require_parameters`) for both chat and decision calls. `ai/test` exports `Experimental_DecisionMockModelV4` | `.agent-logs/hsdc-poc-R2.report.md`; npm tarballs `@openrouter/ai-sdk-provider@3.1.0`, `ai@7.0.183` |
 | The model page `openrouter.ai/openai/gpt-6-luna-decisions` returned HTTP 404 on 2026-11-25; the slug comes from the multimodal decisions guide and is not in the "popular Decisions models" list | Research note — must be verified (TAC-003-07) |
 | `openai/gpt-6-luna` accepts `tools`, `tool_choice`, `response_format`, `stream`, `reasoning`; image input and `json_schema` support are not stated on its model page | OpenRouter model page — must be verified (TAC-003-07) |
 
@@ -61,7 +62,7 @@ Not covered: HTTP contracts (ADR-002), UI (ADR-001), project setup (ADR-004).
 
 ### 3.2 Screening service (`server/ai/screening`)
 
-One `experimental_decide` call with `openrouter.decisionModel(DECISIONS_MODEL)`, `maxRetries: 1`, abort after 25 s, provider routing `data_collection: deny`.
+One `experimental_decide` call with `openrouter.evaluationModel(DECISIONS_MODEL)`, `maxRetries: 1`, abort after 25 s, provider routing `data_collection: deny`.
 
 **State** (ordered typed parts): (1) text — fixed English instruction "Customer-submitted photo of an electronic device for a return or warranty complaint"; (2) JSON — `{ caseType, formCategory, productName }` (the description is **not** sent; description-related checks are LLM-only, see §3.4); (3) file — the compressed JPEG (`image/jpeg`).
 
@@ -189,7 +190,7 @@ Models, policies and clock are injected; tests never call the network or depend 
 **Status:** Accepted
 **Date:** 2026-11-25
 **Context:** The user wants a cheap first-pass classifier that judges photo quality, category, damage and condition with measurable certainty, passes signals to the LLM and allows skipping the LLM when certainty is high.
-**Decision:** Every case is screened by `openai/gpt-6-luna-decisions` through `experimental_decide` and `openrouter.decisionModel`. Its calibrated probabilities feed a deterministic router; the LLM receives the signals when the case is escalated.
+**Decision:** Every case is screened by `openai/gpt-6-luna-decisions` through `experimental_decide` and `openrouter.evaluationModel`. Its calibrated probabilities feed a deterministic router; the LLM receives the signals when the case is escalated.
 **Rejected alternatives:**
 - LLM-only analysis (previous revision): no calibrated certainty, every case pays for an LLM call.
 - Raw HTTP calls to `/api/alpha/decisions`: duplicates what the provider already maps (typed parts, refusals, rounding, metadata).

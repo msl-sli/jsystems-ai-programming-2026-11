@@ -46,7 +46,7 @@ Versions are the latest on npm on 2026-11-25; the implementing agent pins the in
 |---|---|---|---|
 | Next.js | `/vercel/next.js` (versioned: `/vercel/next.js/v16.4.5`) | 16.4.x | App Router, route handlers, `create-next-app`, `next/font/local` |
 | AI SDK | `/vercel/ai` (versioned: `/vercel/ai/ai_7.0.0`); docs site `/websites/ai-sdk_dev` | `ai` 7.0.x (≥ 7.0.133), `@ai-sdk/react` 4.x | `experimental_decide`, `generateText` + `Output.object`, `streamText`, tools, UI message streams, `useChat` |
-| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | 3.1.x | `openrouter(id)`, `openrouter.decisionModel(id)`, `fetch` injection, provider routing options |
+| OpenRouter AI SDK provider | `/openrouterteam/ai-sdk-provider` | 3.1.x | `openrouter(id)`, `openrouter.evaluationModel(id)`, `fetch` injection, provider routing options |
 | OpenRouter API docs | `/websites/openrouter_ai`; https://openrouter.ai/docs | — | Base URL, Decisions API (alpha), structured outputs, provider routing |
 | AI Elements | https://ui.shadcn.com/docs/ai-elements ; legacy `/vercel/ai-elements` | patterns (no package) | Chat, Message, Prompt Input, Message Scroller |
 | shadcn/ui | `/shadcn-ui/ui` | CLI 4.x | UI primitives |
@@ -63,7 +63,7 @@ Versions are the latest on npm on 2026-11-25; the implementing agent pins the in
 | Option | What the docs say | Verdict for this PRD |
 |---|---|---|
 | **Vercel AI SDK** (github.com/vercel/ai, ai-sdk.dev) | v7: `streamText` + `toUIMessageStream` + `createUIMessageStreamResponse` on the server, `useChat` with `DefaultChatTransport`, `regenerate`, custom `data-*` parts; images as `file` parts (bytes/base64); structured output via `generateText` + `Output.object` (`generateObject` deprecated); `experimental_decide` for decision models; `MockLanguageModelV4` for tests; Node.js 22+ | **Use** — covers streaming chat, multimodal input, structured output and Decisions in one library |
-| **OpenRouter provider for the AI SDK** (openrouter.ai/docs/guides/community/vercel-ai-sdk) | Package `@openrouter/ai-sdk-provider`, `createOpenRouter({ apiKey })`, reads `OPENROUTER_API_KEY`; also exposes `decisionModel()` for the Decisions API (`/api/alpha/decisions`) and accepts a custom `fetch` | **Use** — the only option that gives both `LLM_MODEL` and the Luna Decisions model through the AI SDK |
+| **OpenRouter provider for the AI SDK** (openrouter.ai/docs/guides/community/vercel-ai-sdk) | Package `@openrouter/ai-sdk-provider`, `createOpenRouter({ apiKey })`, reads `OPENROUTER_API_KEY`; also exposes `evaluationModel()` for the Decisions API (`/api/alpha/decisions`) and accepts a custom `fetch` | **Use** — the only option that gives both `LLM_MODEL` and the Luna Decisions model through the AI SDK |
 | **OpenRouter Responses API** (openrouter.ai/docs/api_reference/responses/overview) | OpenAI-compatible, `POST /api/v1/responses`, explicitly stateless (`store: true` / `previous_response_id` rejected), features: reasoning, tool calling, web search, structured output via `text.format` | **Not used** — stateless like our design but adds nothing the PRD needs; would bypass the provider's `useChat`/Decisions integration |
 | **Chat SDK** (chat-sdk.dev) | "A TypeScript library for building chat bots that run on multiple platforms" (Slack, Teams, Google Chat, Discord, Telegram, WhatsApp); Redis state adapter; no web UI | **Not a fit** — it is not a web chat app template |
 | **AI Elements** (now under ui.shadcn.com/docs/ai-elements) | Copied shadcn-style patterns (Chat, Message, Prompt Input, …), "no package to install"; old site deprecated end of November 2026 | **Use** for the chat UI (ADR-001) |
@@ -289,7 +289,7 @@ flowchart LR
     DEC["ai/decision"]
     CHS["ai/chat"]
     POL["policies"]
-    LLM["llm: openrouter() + decisionModel()"]
+    LLM["llm: openrouter() + evaluationModel()"]
     SCRH --> SCR --> LLM
     DECH --> RT
     DECH --> DEC --> LLM
