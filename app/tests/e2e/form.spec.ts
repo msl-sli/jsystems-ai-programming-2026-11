@@ -3,6 +3,7 @@ import {
   COMPLAINT_DESCRIPTION,
   REAL_JPEG,
   REAL_NON_IMAGE,
+  chooseCategory,
   daysFromToday,
   dotted,
   openForm,
@@ -198,8 +199,7 @@ test("AC-12: invalid submit shows messages and focuses first invalid field", asy
 
   // First invalid becomes the name field once type and category are set.
   await page.getByRole("radio", { name: "Zwrot" }).check();
-  await page.getByRole("combobox", { name: "Kategoria sprzętu" }).click();
-  await page.getByRole("option", { name: "Laptop" }).click();
+  await chooseCategory(page, "Laptop");
   await submitBtn(page).click();
   await expect(nameInput(page)).toBeFocused();
   await expect(page.getByTestId("processing-screen")).toHaveCount(0);
@@ -209,8 +209,7 @@ test("AC-13: switching type keeps values and re-applies description rules", asyn
   page,
 }) => {
   await page.getByRole("radio", { name: "Reklamacja" }).check();
-  await page.getByRole("combobox", { name: "Kategoria sprzętu" }).click();
-  await page.getByRole("option", { name: "Tablet" }).click();
+  await chooseCategory(page, "Tablet");
   await nameInput(page).fill("iPad Air");
   await dateInput(page).fill(dotted(yearsAgo(1)));
   await descInput(page).fill("krótki");
@@ -248,9 +247,12 @@ test("AC-42: whole form operable with keyboard only", async ({ page }) => {
     await key("Tab");
   }
   await expect(page.getByRole("radio", { name: "Reklamacja" })).toBeFocused();
-  await key("ArrowRight");
+  // Radix RadioGroup moves focus in a setTimeout and checks the item only while the arrow key is
+  // still down; hold the key like a person does instead of an instant keydown+keyup.
+  const holdKey = (k: string) => page.keyboard.press(k, { delay: 80 });
+  await holdKey("ArrowRight");
   await expect(page.getByRole("radio", { name: "Zwrot" })).toBeChecked();
-  await key("ArrowLeft");
+  await holdKey("ArrowLeft");
   await expect(page.getByRole("radio", { name: "Reklamacja" })).toBeChecked();
 
   await key("Tab");

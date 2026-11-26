@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { REAL_JPEG, openForm } from "./helpers/form";
+import { REAL_JPEG, chooseCategory, openForm } from "./helpers/form";
 
 /** Reloads with a dialog listener; returns the dialog types seen. */
 async function reloadCollectingDialogs(page: Page): Promise<string[]> {
@@ -38,8 +38,7 @@ test("AC-39: only selecting a category (Radix select) triggers beforeunload", as
   page,
 }) => {
   await openForm(page);
-  await page.getByRole("combobox", { name: "Kategoria sprzętu" }).click();
-  await page.getByRole("option", { name: "Laptop" }).click();
+  await chooseCategory(page, "Laptop");
   await expect(page.getByRole("combobox", { name: "Kategoria sprzętu" })).toHaveText("Laptop");
   expect(await reloadCollectingDialogs(page)).toEqual(["beforeunload"]);
   await expectEmpty(page);

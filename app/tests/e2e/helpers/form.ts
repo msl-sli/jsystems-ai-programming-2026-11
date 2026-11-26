@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 const IMAGES = path.resolve(__dirname, "../../../../assets/example-images");
 export const REAL_JPEG = path.join(IMAGES, "phone-1.jpg");
@@ -12,6 +12,19 @@ export const COMPLAINT_DESCRIPTION =
   "Ekran laptopa ma pęknięcie po prawej stronie.";
 
 /** Waits until the form is hydrated and rendered (it renders after the browser date is known). */
+/**
+ * Picks a category like a person: open the list, choose, and continue only once the list has
+ * closed and Radix Select has returned focus to its trigger. Typing into the next field before
+ * that lets the asynchronous focus return steal the keystrokes (seen in Firefox under load).
+ */
+export async function chooseCategory(page: Page, name: string) {
+  const trigger = page.getByRole("combobox", { name: "Kategoria sprzętu" });
+  await trigger.click();
+  await page.getByRole("option", { name, exact: true }).click();
+  await expect(page.getByRole("listbox")).toBeHidden();
+  await expect(trigger).toBeFocused();
+}
+
 export async function openForm(page: Page) {
   await page.goto("/");
   await page.getByLabel("Nazwa lub model sprzętu").waitFor();

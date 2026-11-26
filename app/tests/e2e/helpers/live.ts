@@ -6,7 +6,7 @@ import {
   CATEGORIES_BY_CASE_TYPE,
   DECISION_LABELS,
 } from "../../../src/domain/decision-labels";
-import { dotted, openForm } from "./form";
+import { chooseCategory, dotted, openForm } from "./form";
 
 // Live E2E helpers (plan 7a). The app is real, the calls are real. Playwright only OBSERVES
 // traffic (request/response events); nothing here modifies or answers a request.
@@ -223,8 +223,7 @@ export type CaseSpec = {
 
 export async function fillCase(page: Page, c: CaseSpec) {
   await page.getByRole("radio", { name: c.caseType }).check();
-  await page.getByRole("combobox", { name: "Kategoria sprzętu" }).click();
-  await page.getByRole("option", { name: c.category, exact: true }).click();
+  await chooseCategory(page, c.category);
   await page.getByLabel("Nazwa lub model sprzętu").fill(c.name);
   await page.getByLabel("Data zakupu").fill(c.purchaseDate);
   if (c.description) {
