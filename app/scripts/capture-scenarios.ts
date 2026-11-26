@@ -59,7 +59,7 @@ export const SCREENING_PHOTOS = [
     width: 449,
     height: 445,
   },
-  // `.png` name, JPEG bytes (README): the original bytes are valid `image/jpeg`.
+  // `.png` name, JPEG bytes (README); 3024 x 3135 exceeds the Jev 1568 px edge limit, so it is resized with `sharp`.
   {
     id: "laptop-1",
     file: "laptop-1.png",
@@ -67,8 +67,9 @@ export const SCREENING_PHOTOS = [
     product: "Laptop testowy",
     width: 3024,
     height: 3135,
+    convert: true,
   },
-  // WebP: converted to JPEG with `sharp` (browser compression of T22 is not available in node).
+  // WebP: Jev accepts only PNG/JPEG, so it is converted to JPEG with `sharp` (browser compression of T22 is not available in node).
   {
     id: "laptop-2",
     file: "laptop-2.webp",
@@ -102,6 +103,16 @@ export function screeningCaseInput(
   };
 }
 
+async function sizeOf(
+  bytes: Buffer,
+): Promise<{ width: number; height: number }> {
+  const { default: sharp } = await import("sharp");
+  const { width, height } = await sharp(bytes).metadata();
+  if (!width || !height)
+    throw new Error("Cannot read the converted image size");
+  return { width, height };
+}
+
 /** Image as the capture sends it. Replay tests call this too, so the request body hash matches the recording. */
 export async function loadScreeningCaseImage(
   photo: ScreeningPhoto,
@@ -110,19 +121,29 @@ export async function loadScreeningCaseImage(
   let bytes: Buffer = original;
   if ("convert" in photo) {
     const { default: sharp } = await import("sharp");
-    bytes = await sharp(original).jpeg({ quality: 90 }).toBuffer();
+    // Jev limits: each side 256-1568 px, at least 78,400 px; the API does not apply EXIF orientation, so bake it in.
+    bytes = await sharp(original)
+      .rotate()
+      .resize({
+        width: 1568,
+        height: 1568,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 90 })
+      .toBuffer();
   }
+  const size = "convert" in photo ? await sizeOf(bytes) : photo;
   return {
     mediaType: "image/jpeg",
     base64: bytes.toString("base64"),
-    width: photo.width,
-    height: photo.height,
+    width: size.width,
+    height: size.height,
   };
 }
 
 function screeningSummary(photo: ScreeningPhoto, caseType: string): string {
-  const converted =
-    "convert" in photo ? " (converted from WebP with sharp)" : "";
+  const converted = "convert" in photo ? " (converted/resized with sharp)" : "";
   return (
     "Decisions: 4 questions (photo_quality, observed_category, visible_damage_or_use, condition); " +
     `state = instruction text + json {caseType: ${caseType}, formCategory: ${photo.category}, productName: ${photo.product}} + ` +

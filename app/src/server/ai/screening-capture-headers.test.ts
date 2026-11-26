@@ -25,7 +25,7 @@ describe("invalid-key capture override (request shape)", () => {
         purchaseDate: "2026-11-01",
         description: "",
       },
-      { mediaType: "image/jpeg", base64: "AAAA", width: 1, height: 1 },
+      { mediaType: "image/jpeg", base64: "AAAA", width: 300, height: 300 },
     );
     await experimental_decide({
       model: getDecisionModel(provider, "vendor/decisions-test") as never,

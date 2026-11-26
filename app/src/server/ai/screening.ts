@@ -1,5 +1,10 @@
 import "server-only";
-import { Experimental_DecisionRefusalError, experimental_decide } from "ai";
+import {
+  APICallError,
+  Experimental_DecisionRefusalError,
+  experimental_decide,
+} from "ai";
+import { z } from "zod";
 import type { CaseInput } from "@/domain/case-schema";
 import {
   CONDITION_LEVELS,
@@ -264,6 +269,132 @@ function asDecisionModel(
   return model as unknown as DecisionModelArg;
 }
 
+function buildAnswer<K extends ScreeningQuestionId>(
+  kind: "choice" | "boolean" | "score",
+  value: Answer<K>["value"],
+  probabilities: Record<string, number>,
+  threshold: number,
+  providerConfidence: number | undefined,
+): Answer<K> {
+  const certainty = certaintyOf(kind, probabilities);
+  return {
+    value,
+    probabilities,
+    certainty,
+    confident: isConfident(certainty, threshold),
+    refused: false,
+    ...(providerConfidence === undefined ? {} : { providerConfidence }),
+  } as Answer<K>;
+}
+
+// ------------------------------------------------------------------ refusal folding (OpenRouter Decisions response)
+
+/**
+ * `@openrouter/ai-sdk-provider@3.1.0` validates the response without a `{ type: "refusal" }` variant, so a response that
+ * refuses one question fails validation and surfaces as an `APICallError` carrying the raw `responseBody`.
+ * Documented behavior: a refused, missing or unexpected-type answer is "not answered" and fails closed.
+ */
+const DecisionsBodySchema = z.object({
+  answers: z.record(z.string(), z.unknown()),
+  usage: z.object({ cost: z.number().optional() }).optional(),
+});
+const ProbabilitiesSchema = z.record(z.string(), z.number());
+const NoulSchema = z.object({
+  type: z.literal("noul"),
+  noul: z.number().min(0).max(1),
+  confidence: z.number().optional(),
+});
+const ChoiceSchema = z.object({
+  type: z.literal("choice"),
+  choice: z.string(),
+  probabilities: ProbabilitiesSchema.optional(),
+  confidence: z.number().optional(),
+});
+const ScoreSchema = z.object({
+  type: z.literal("score"),
+  score: z.number(),
+  probabilities: ProbabilitiesSchema.optional(),
+  confidence: z.number().optional(),
+});
+
+const validConfidence = (value: number | undefined) =>
+  value !== undefined && value >= 0 && value <= 1 ? value : undefined;
+
+/** Returns the folded result, or undefined when the body is not a Decisions response containing at least one refusal. */
+export function foldRefusalResponse(
+  responseBody: string | undefined,
+  threshold: number,
+): { answers: ScreeningAnswers; costCredits?: number } | undefined {
+  if (!responseBody) return undefined;
+  let json: unknown;
+  try {
+    json = JSON.parse(responseBody);
+  } catch {
+    return undefined;
+  }
+  const body = DecisionsBodySchema.safeParse(json);
+  if (!body.success) return undefined;
+  const raw = body.data.answers;
+  const refusedCount = SCREENING_QUESTION_IDS.filter(
+    (id) =>
+      (raw[id] as { type?: unknown } | null | undefined)?.type === "refusal",
+  ).length;
+  if (refusedCount === 0) return undefined;
+
+  const choice = <K extends "photo_quality" | "observed_category">(
+    id: K,
+    allowed: readonly string[],
+  ): Answer<K> => {
+    const parsed = ChoiceSchema.safeParse(raw[id]);
+    if (!parsed.success || !allowed.includes(parsed.data.choice))
+      return refusedAnswer() as Answer<K>;
+    return buildAnswer<K>(
+      "choice",
+      parsed.data.choice as Answer<K>["value"],
+      parsed.data.probabilities ?? {},
+      threshold,
+      validConfidence(parsed.data.confidence),
+    );
+  };
+
+  const damage = NoulSchema.safeParse(raw.visible_damage_or_use);
+  const yes = damage.success ? round2(damage.data.noul) : 0;
+  const score = ScoreSchema.safeParse(raw.condition);
+  const buckets = score.success ? (score.data.probabilities ?? {}) : {};
+  const level = score.success
+    ? Number(argmax(buckets) ?? Math.round(score.data.score))
+    : Number.NaN;
+
+  const answers: ScreeningAnswers = {
+    photo_quality: choice("photo_quality", PHOTO_QUALITY_VALUES),
+    observed_category: choice("observed_category", OBSERVED_CATEGORY_VALUES),
+    visible_damage_or_use: damage.success
+      ? buildAnswer<"visible_damage_or_use">(
+          "boolean",
+          yes >= 0.5,
+          { true: yes, false: round2(1 - yes) },
+          threshold,
+          validConfidence(damage.data.confidence),
+        )
+      : refusedAnswer(),
+    condition:
+      score.success && (CONDITION_LEVELS as readonly number[]).includes(level)
+        ? buildAnswer<"condition">(
+            "score",
+            level as Answer<"condition">["value"],
+            buckets,
+            threshold,
+            validConfidence(score.data.confidence),
+          )
+        : refusedAnswer(),
+  };
+  const cost = body.data.usage?.cost;
+  return {
+    answers,
+    ...(cost !== undefined && cost >= 0 ? { costCredits: cost } : {}),
+  };
+}
+
 export async function screenCase(
   caseInput: CaseInput,
   caseImage: CaseImage,
@@ -306,6 +437,10 @@ export async function screenCase(
         condition: refusedAnswer(),
       });
     }
+    if (APICallError.isInstance(error)) {
+      const folded = foldRefusalResponse(error.responseBody, options.threshold);
+      if (folded) return finish(folded.answers, folded.costCredits);
+    }
     throw toLlmError(error, options.signal);
   }
 
@@ -315,18 +450,14 @@ export async function screenCase(
     value: Answer<K>["value"],
     kind: "choice" | "boolean" | "score",
     probabilities: Record<string, number>,
-  ): Answer<K> => {
-    const certainty = certaintyOf(kind, probabilities);
-    const providerConfidence = providerConfidenceOf(metadata, id);
-    return {
+  ): Answer<K> =>
+    buildAnswer<K>(
+      kind,
       value,
       probabilities,
-      certainty,
-      confident: isConfident(certainty, options.threshold),
-      refused: false,
-      ...(providerConfidence === undefined ? {} : { providerConfidence }),
-    } as Answer<K>;
-  };
+      options.threshold,
+      providerConfidenceOf(metadata, id),
+    );
 
   const { answers } = result;
   const yes = round2(answers.visible_damage_or_use.probability);

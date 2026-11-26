@@ -55,8 +55,8 @@ export function makeDecisionResponse(): DecisionResponse {
 export const image = {
   mediaType: "image/jpeg" as const,
   base64: "AAAA",
-  width: 10,
-  height: 10,
+  width: 300,
+  height: 300,
 };
 
 export const photoFile = () =>

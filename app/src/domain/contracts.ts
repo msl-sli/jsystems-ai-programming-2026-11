@@ -22,19 +22,29 @@ export const CaseCategorySchema = z.enum(CASE_CATEGORIES);
 
 // ---------------------------------------------------------------- image
 
-export const IMAGE_MAX_DIMENSION = 4096;
+/**
+ * TypeSafe Jev 1.14 (OpenRouter Decisions) image limits: each side 256-1568 px, total 78,400-2,458,624 px (1568 x 1568).
+ * Below the minimum the API answers HTTP 400, above the maximum HTTP 413.
+ */
+export const IMAGE_MIN_EDGE = 256;
+export const IMAGE_MAX_EDGE = 1568;
+export const IMAGE_MIN_PIXELS = 78_400;
 
 /** Compressed photo limit (ADR-002 §5); the HTTP layer also checks the decoded size. */
 export const IMAGE_MAX_BYTES = 1.5 * 1024 * 1024;
 /** Base64 length of IMAGE_MAX_BYTES bytes. */
 export const IMAGE_MAX_BASE64_LENGTH = Math.ceil(IMAGE_MAX_BYTES / 3) * 4;
 
-export const CaseImageSchema = z.strictObject({
-  mediaType: z.literal("image/jpeg"),
-  base64: z.string().min(1).max(IMAGE_MAX_BASE64_LENGTH),
-  width: z.int().min(1).max(IMAGE_MAX_DIMENSION),
-  height: z.int().min(1).max(IMAGE_MAX_DIMENSION),
-});
+export const CaseImageSchema = z
+  .strictObject({
+    mediaType: z.literal("image/jpeg"),
+    base64: z.string().min(1).max(IMAGE_MAX_BASE64_LENGTH),
+    width: z.int().min(IMAGE_MIN_EDGE).max(IMAGE_MAX_EDGE),
+    height: z.int().min(IMAGE_MIN_EDGE).max(IMAGE_MAX_EDGE),
+  })
+  .refine((image) => image.width * image.height >= IMAGE_MIN_PIXELS, {
+    message: `image must have at least ${IMAGE_MIN_PIXELS} pixels`,
+  });
 export type CaseImage = z.infer<typeof CaseImageSchema>;
 
 // ---------------------------------------------------------------- screening

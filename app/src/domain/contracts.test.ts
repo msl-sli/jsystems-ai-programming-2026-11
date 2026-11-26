@@ -4,6 +4,9 @@ import {
   AUTOMATED_DECISION_NOTICE,
   DecisionOutputWireSchema,
   IMAGE_MAX_BASE64_LENGTH,
+  IMAGE_MAX_EDGE,
+  IMAGE_MIN_EDGE,
+  IMAGE_MIN_PIXELS,
   CaseImageSchema,
   CaseInputSchema,
   ChangeDecisionInputSchema,
@@ -76,7 +79,7 @@ const screening = {
     },
   },
   uncertainAreas: ["visible_damage_or_use", "condition"],
-  model: "openai/gpt-6-luna-decisions",
+  model: "typesafe/jev-1.14",
   promptVersion: "2026-11-26.1",
   costCredits: 0.0012,
   latencyMs: 2300,
@@ -117,6 +120,21 @@ describe("constants", () => {
 });
 
 describe("CaseImageSchema", () => {
+  it("accepts the Jev boundaries (256 px edge, 78,400 px minimum, 1568 px edge)", () => {
+    expect(IMAGE_MIN_EDGE).toBe(256);
+    expect(IMAGE_MAX_EDGE).toBe(1568);
+    expect(IMAGE_MIN_PIXELS).toBe(78_400);
+    for (const [width, height] of [
+      [256, 307],
+      [280, 280],
+      [1568, 1568],
+      [1568, 256],
+    ] as const)
+      expect(
+        CaseImageSchema.safeParse({ ...caseImage, width, height }).success,
+      ).toBe(true);
+  });
+
   it("accepts a JPEG description", () => {
     expect(CaseImageSchema.safeParse(caseImage).success).toBe(true);
   });
@@ -125,7 +143,10 @@ describe("CaseImageSchema", () => {
     { ...caseImage, mediaType: "image/png" },
     { ...caseImage, base64: "" },
     { ...caseImage, width: 0 },
-    { ...caseImage, height: 4097 },
+    { ...caseImage, height: 1569 },
+    { ...caseImage, width: 255 },
+    { ...caseImage, width: 256, height: 306 }, // 78,336 px < 78,400
+    { ...caseImage, width: 1569, height: 300 },
     { ...caseImage, width: 10.5 },
     { ...caseImage, base64: "A".repeat(IMAGE_MAX_BASE64_LENGTH + 4) },
   ])("rejects %j", (image) => {

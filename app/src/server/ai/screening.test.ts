@@ -24,8 +24,8 @@ const IMAGE_BYTES = Buffer.from("synthetic-jpeg-bytes-for-request-shape-tests");
 const caseImage: CaseImage = {
   mediaType: "image/jpeg",
   base64: IMAGE_BYTES.toString("base64"),
-  width: 10,
-  height: 10,
+  width: 300,
+  height: 300,
 };
 const DESCRIPTION =
   "ZZ-UNIQUE-DESCRIPTION-MARKER: ekran pęka po upadku, proszę o wymianę";
@@ -170,38 +170,66 @@ describe("screening wire request (transport rejected, no response involved)", ()
     expect(new URL(seen[0]!.url).pathname).toBe("/api/alpha/decisions");
   });
 
-  it("sends the text, the form JSON and the image, in that order, with the image bytes exactly once", async () => {
+  it("sends the text, the form JSON and the image (wire items), in that order, with the image bytes exactly once", async () => {
     const { body, bodyText } = (await capture())[0]!;
-    const state = body.state as { type: string }[];
-    expect(state.map((part) => part.type)).toEqual(["text", "json", "file"]);
+    const state = body.state as unknown[];
+    expect(
+      state.map((item) =>
+        typeof item === "string"
+          ? "string"
+          : ((item as { type?: string }).type ?? "object"),
+      ),
+    ).toEqual(["string", "object", "image_url"]);
     expect(state[1]).toEqual({
-      type: "json",
-      value: {
-        caseType: "complaint",
-        formCategory: "laptop",
-        productName: "Laptop testowy",
-      },
+      caseType: "complaint",
+      formCategory: "laptop",
+      productName: "Laptop testowy",
     });
     expect(bodyText.split(caseImage.base64)).toHaveLength(2);
   });
 
-  // KNOWN GAP (reported with T32): ADR-003 section 2 assumes the provider turns file parts into top-level `image_url`
-  // data URLs. @openrouter/ai-sdk-provider@3.1.0 forwards `state` unchanged, so the wire item is the AI SDK file part
-  // `{ type: "file", mediaType, data: { type: "data", data: <base64> } }`. This test states the ADR requirement and is
-  // expected to fail until the gap is closed; when it starts passing, vitest reports it so `.fails` is removed.
-  it.fails(
-    "ADR-003: the image is a top-level base64 JPEG data URL in the state array",
-    async () => {
-      const { body } = (await capture())[0]!;
-      const state = body.state as unknown[];
-      const wanted = `data:image/jpeg;base64,${caseImage.base64}`;
-      expect(
-        state.some(
-          (item) => item === wanted || JSON.stringify(item).includes(wanted),
+  it("sends the documented Decisions wire request for typesafe/jev-1.14", async () => {
+    const { fetchImpl, seen } = rejectingFetch(abortError());
+    await expect(
+      screenCase(caseInput, caseImage, {
+        decisionModel: getDecisionModel(
+          createLlmProvider({ apiKey: "test-key-not-real", fetch: fetchImpl }),
+          "typesafe/jev-1.14",
         ),
-      ).toBe(true);
-    },
-  );
+        signal: new AbortController().signal,
+        threshold: 0.8,
+      }),
+    ).rejects.toBeInstanceOf(LlmTimeoutError);
+    const { body, bodyText } = seen[0]!;
+    expect(body.model).toBe("typesafe/jev-1.14");
+    expect(body.state).toEqual([
+      "Customer-submitted photo of an electronic device for a return or warranty complaint",
+      {
+        caseType: "complaint",
+        formCategory: "laptop",
+        productName: "Laptop testowy",
+      },
+      {
+        type: "image_url",
+        image_url: { url: `data:image/jpeg;base64,${caseImage.base64}` },
+      },
+    ]);
+    expect(bodyText.split(caseImage.base64)).toHaveLength(2);
+    expect((body.provider as Record<string, unknown>).data_collection).toBe(
+      "deny",
+    );
+    const questions = body.questions as Record<string, { type: string }>;
+    expect(Object.values(questions).map((q) => q.type)).toEqual([
+      "choice",
+      "choice",
+      "noul",
+      "score",
+    ]);
+    expect(body).not.toHaveProperty("user");
+    expect(body).not.toHaveProperty("session_id");
+    expect(bodyText).not.toContain("ZZ-UNIQUE");
+    expect(bodyText).not.toContain("2026-11-01");
+  });
 
   it("never sends the description, user or session_id and denies data collection", async () => {
     const { body, bodyText } = (await capture())[0]!;

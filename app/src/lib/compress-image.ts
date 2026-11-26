@@ -1,3 +1,19 @@
+import {
+  IMAGE_MAX_EDGE,
+  IMAGE_MIN_EDGE,
+  IMAGE_MIN_PIXELS,
+} from "@/domain/contracts";
+
+/** The photo cannot be scaled into the Jev limits (for example an extreme panorama). */
+export class ImageDimensionsError extends Error {
+  constructor(width: number, height: number) {
+    super(
+      `Image ${width}x${height} cannot be scaled to ${IMAGE_MIN_EDGE}-${IMAGE_MAX_EDGE} px edges and ${IMAGE_MIN_PIXELS} px`,
+    );
+    this.name = "ImageDimensionsError";
+  }
+}
+
 export type CompressedImage = {
   mediaType: "image/jpeg";
   base64: string;
@@ -6,13 +22,13 @@ export type CompressedImage = {
 };
 
 export type CompressImageOptions = {
-  /** Longest allowed edge in pixels. Images are never upscaled. */
+  /** Longest allowed edge in pixels. Images are upscaled only as far as the Jev minimums (256 px edge, 78,400 px) require. */
   maxEdge?: number;
   /** Upper bound for the encoded JPEG. */
   maxBytes?: number;
 };
 
-const DEFAULT_MAX_EDGE = 1568;
+const DEFAULT_MAX_EDGE = IMAGE_MAX_EDGE;
 const DEFAULT_MAX_BYTES = 1.5 * 1024 * 1024;
 const FALLBACK_EDGE = 1280;
 /** Quality steps tried in order; the first result within maxBytes wins. */
@@ -45,17 +61,37 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-function fitWithin(width: number, height: number, edge: number) {
-  const scale = Math.min(1, edge / Math.max(width, height));
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
+const satisfiesLimits = (width: number, height: number, maxEdge: number) =>
+  Math.min(width, height) >= IMAGE_MIN_EDGE &&
+  Math.max(width, height) <= maxEdge &&
+  width * height >= IMAGE_MIN_PIXELS;
+
+/**
+ * Smallest change of size that keeps the long edge <= maxEdge, the short edge >= 256 and the area >= 78,400 px
+ * (no change when the image already complies). Undefined when no such size exists.
+ */
+function planSize(width: number, height: number, maxEdge: number) {
+  const lowest = Math.max(
+    IMAGE_MIN_EDGE / Math.min(width, height),
+    Math.sqrt(IMAGE_MIN_PIXELS / (width * height)),
+  );
+  const highest = maxEdge / Math.max(width, height);
+  const scale = Math.min(Math.max(1, lowest), highest);
+  for (const round of [Math.round, Math.ceil]) {
+    const candidate = {
+      width: round(width * scale),
+      height: round(height * scale),
+    };
+    if (satisfiesLimits(candidate.width, candidate.height, maxEdge))
+      return candidate;
+  }
+  return undefined;
 }
 
 /**
  * Decodes (applying EXIF orientation), downsizes and re-encodes a photo as JPEG.
- * Rejects when the image cannot be decoded or cannot be brought within `maxBytes`.
+ * Rejects when the image cannot be decoded, cannot be scaled into the Jev limits (`ImageDimensionsError`) or cannot be
+ * brought within `maxBytes`.
  */
 export async function compressImage(
   file: File,
@@ -68,11 +104,15 @@ export async function compressImage(
     imageOrientation: "from-image",
   });
   try {
+    if (!planSize(bitmap.width, bitmap.height, maxEdge))
+      throw new ImageDimensionsError(bitmap.width, bitmap.height);
     const edges = [maxEdge];
     if (FALLBACK_EDGE < maxEdge) edges.push(FALLBACK_EDGE);
 
     for (const edge of edges) {
-      const { width, height } = fitWithin(bitmap.width, bitmap.height, edge);
+      const size = planSize(bitmap.width, bitmap.height, edge);
+      if (!size) continue;
+      const { width, height } = size;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;

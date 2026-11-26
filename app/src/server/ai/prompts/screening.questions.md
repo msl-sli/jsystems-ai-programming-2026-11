@@ -1,6 +1,6 @@
 prompt-version: 2026-11-26.1
 
-# Screening questions (Luna Decisions)
+# Screening questions (TypeSafe Jev 1.14)
 
 Parsed by `server/ai/screening.ts`: one `## <id>` section per question with a `type:` line, an `instructions:` line and a list of
 `- <key>: <criterion>` items. The `instruction` section is the fixed state text. Option keys must match the enums in `domain/contracts.ts`.
