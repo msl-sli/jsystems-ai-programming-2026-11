@@ -178,6 +178,16 @@ describe("streamChat replay of real captures", () => {
     expect(text.length).toBeGreaterThan(0);
   });
 
+  it("chat-new-fact-change-decision: tool calls and provider metadata stay on the server", async () => {
+    const { events } = await replayChat(
+      ["chat-new-fact-change-decision", "chat-new-fact-change-decision-2"],
+      "Urządzenie spadło na podłogę i od tego czasu ma pęknięcie.",
+    );
+    expect(types(events).filter((t) => t.startsWith("tool-"))).toEqual([]);
+    expect(JSON.stringify(events)).not.toMatch(/providerMetadata|reasoning_details/);
+    expect(types(events)).toContain("data-decision");
+  });
+
   it("chat-new-fact-change-decision: telemetry for both model steps", async () => {
     const calls: LlmCallTelemetry[] = [];
     await replayChat(

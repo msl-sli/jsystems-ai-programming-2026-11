@@ -231,6 +231,28 @@ export interface StreamChatOptions extends ChatPromptOptions {
  * i.e. after the model's tool call and before the model's next step, which is the step that writes the
  * confirmation text. The prompt forbids text before the tool call, so the part precedes all text.
  */
+/**
+ * The server executes changeDecision itself; the browser only needs text and data-decision parts.
+ * The real I4 capture (api-captures/f-chat-new-fact.json) showed tool-* chunks with the model's
+ * internal English reason and encrypted provider reasoning in providerMetadata: drop both.
+ */
+function clientSafeChunks<T extends { type: string }>(): TransformStream<T, T> {
+  return new TransformStream<T, T>({
+    transform(chunk, controller) {
+      if (chunk.type.startsWith("tool-")) return;
+      if ("providerMetadata" in chunk) {
+        const { providerMetadata: _dropped, ...rest } = chunk as T & {
+          providerMetadata?: unknown;
+        };
+        void _dropped;
+        controller.enqueue(rest as T);
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+}
+
 export function streamChat(
   context: ChatCaseContext,
   messages: readonly ChatUIMessage[],
@@ -289,7 +311,7 @@ export function streamChat(
           // I4 run (api-captures/c-chat-question.json) and must never be forwarded.
           sendReasoning: false,
           onError: mask,
-        }),
+        }).pipeThrough(clientSafeChunks()),
       );
     },
     onError: mask,
