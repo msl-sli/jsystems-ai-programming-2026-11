@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/cases/decision"
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 15:02:40 GMT",
+      "keep-alive": "timeout=5",
+      "transfer-encoding": "chunked",
+      "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding"
+    },
+    "body": "{\"decision\":{\"category\":\"complaint_rejected\",\"label\":\"Reklamacja odrzucona\",\"citedRuleIds\":[\"CMP-1\",\"CMP-3\",\"CMP-5\"],\"justification\":\"Zgodnie z CMP-1 zgłoszenie mieści się w 24-miesięcznym okresie gwarancji. Jednak na zdjęciu widoczne jest pęknięcie ekranu z centralnym punktem uderzenia. Takie uszkodzenie mechaniczne może wyjaśniać zgłoszone pionowe linie, dlatego zgodnie z CMP-3 reklamacja podlega odrzuceniu. Opis i zdjęcie nie są sprzeczne w zakresie zgłaszanego problemu (CMP-5). Ocena jest wstępna i zostanie zweryfikowana po fizycznym sprawdzeniu urządzenia.\",\"photoFindingsSummary\":\"Na zdjęciu widać laptop z włączonym ekranem. W lewej dolnej części ekranu znajduje się pęknięcie o promienistym układzie, z widocznym centralnym punktem uderzenia.\",\"nextSteps\":[\"Ocena jest wstępna; zostanie zweryfikowana po fizycznym sprawdzeniu urządzenia.\"],\"manualReviewKind\":null,\"decisionPath\":\"llm\",\"routeRule\":\"R3\",\"mode\":\"hybrid\"},\"firstMessage\":{\"greeting\":\"Dzień dobry, przedstawiamy wstępną ocenę zgłoszenia.\",\"decisionLabel\":\"Reklamacja odrzucona\",\"justification\":\"Zgodnie z CMP-1 zgłoszenie mieści się w 24-miesięcznym okresie gwarancji. Jednak na zdjęciu widoczne jest pęknięcie ekranu z centralnym punktem uderzenia. Takie uszkodzenie mechaniczne może wyjaśniać zgłoszone pionowe linie, dlatego zgodnie z CMP-3 reklamacja podlega odrzuceniu. Opis i zdjęcie nie są sprzeczne w zakresie zgłaszanego problemu (CMP-5). Ocena jest wstępna i zostanie zweryfikowana po fizycznym sprawdzeniu urządzenia.\",\"photoFindings\":\"Na zdjęciu widać laptop z włączonym ekranem. W lewej dolnej części ekranu znajduje się pęknięcie o promienistym układzie, z widocznym centralnym punktem uderzenia.\",\"nextSteps\":[\"Ocena jest wstępna; zostanie zweryfikowana po fizycznym sprawdzeniu urządzenia.\"],\"notice\":\"Decyzja została przygotowana automatycznie. Ostateczna weryfikacja nastąpi po otrzymaniu sprzętu przez nasz serwis.\"},\"llmFindings\":{\"photoFindingsPl\":\"Na zdjęciu widać laptop z włączonym ekranem. W lewej dolnej części ekranu znajduje się pęknięcie o promienistym układzie, z widocznym centralnym punktem uderzenia.\",\"evidence\":[{\"source\":\"date\",\"text\":\"Zakup nastąpił 10 dni temu; zgłoszenie mieści się w okresie gwarancji.\"},{\"source\":\"description\",\"text\":\"Opis zgłasza pionowe linie na ekranie i zaprzecza upadkowi oraz zalaniu.\"},{\"source\":\"photo\",\"text\":\"Na ekranie laptopa widoczne jest pęknięcie z centralnym punktem uderzenia.\"}],\"signalReview\":{\"photo_quality\":{\"verdict\":\"agree\",\"note\":\"Część laptopa jest poza kadrem, ale ekran i widoczne uszkodzenie można ocenić.\"},\"observed_category\":{\"verdict\":\"agree\",\"note\":\"Na zdjęciu znajduje się laptop.\"},\"visible_damage_or_use\":{\"verdict\":\"agree\",\"note\":\"Ekran jest wyraźnie pęknięty wokół punktu uderzenia.\"},\"condition\":{\"verdict\":\"agree\",\"note\":\"Widoczne uszkodzenie ekranu wskazuje na zły stan urządzenia.\"}}}}"
+  }
+}

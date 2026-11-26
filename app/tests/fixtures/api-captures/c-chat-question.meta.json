@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-11-26T15:03:22.924Z",
+  "today": "2026-11-26",
+  "run": "default",
+  "endpoint": "/api/chat",
+  "requestSummary": "chat question about purchase date",
+  "durationMs": 1960,
+  "packages": {
+    "next": "16.4.6",
+    "ai": "7.0.183",
+    "@openrouter/ai-sdk-provider": "3.1.0"
+  }
+}

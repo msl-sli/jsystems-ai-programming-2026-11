@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "POST",
+    "path": "/api/cases/decision"
+  },
+  "response": {
+    "status": 200,
+    "statusText": "OK",
+    "headers": {
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-type": "application/json",
+      "date": "Thu, 26 Nov 2026 15:03:20 GMT",
+      "keep-alive": "timeout=5",
+      "transfer-encoding": "chunked",
+      "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding"
+    },
+    "body": "{\"decision\":{\"category\":\"manual_review\",\"label\":\"Wymaga weryfikacji przez konsultanta\",\"citedRuleIds\":[\"RET-4\",\"RET-2\"],\"justification\":\"Zwrot mieści się w oknie czasowym, ale na zdjęciu obok modułu aparatu widać drobny, słabo odgraniczony ślad. Nie można potwierdzić ani wykluczyć, że jest to oznaka użycia, dlatego zgodnie z RET-4 potrzebna jest ręczna weryfikacja przed rozstrzygnięciem zwrotu.\",\"photoFindingsSummary\":\"Na zdjęciu widoczny jest tył smartfona. Obudowa jest w większości gładka; obok modułu aparatu widać drobny, słabo odgraniczony ślad, którego charakter nie jest jednoznaczny.\",\"nextSteps\":[\"W sprawie weryfikacji można skontaktować się z support@example.com.\"],\"manualReviewKind\":\"contact_support\",\"decisionPath\":\"llm\",\"routeRule\":\"R3\",\"mode\":\"hybrid\"},\"firstMessage\":{\"greeting\":\"Dzień dobry,\",\"decisionLabel\":\"Wymaga weryfikacji przez konsultanta\",\"justification\":\"Zwrot mieści się w oknie czasowym, ale na zdjęciu obok modułu aparatu widać drobny, słabo odgraniczony ślad. Nie można potwierdzić ani wykluczyć, że jest to oznaka użycia, dlatego zgodnie z RET-4 potrzebna jest ręczna weryfikacja przed rozstrzygnięciem zwrotu.\",\"photoFindings\":\"Na zdjęciu widoczny jest tył smartfona. Obudowa jest w większości gładka; obok modułu aparatu widać drobny, słabo odgraniczony ślad, którego charakter nie jest jednoznaczny.\",\"nextSteps\":[\"W sprawie weryfikacji można skontaktować się z support@example.com.\"],\"notice\":\"Decyzja została przygotowana automatycznie. Ostateczna weryfikacja nastąpi po otrzymaniu sprzętu przez nasz serwis.\"},\"llmFindings\":{\"photoFindingsPl\":\"Na zdjęciu widoczny jest tył smartfona. Obudowa jest w większości gładka; obok modułu aparatu widać drobny, słabo odgraniczony ślad, którego charakter nie jest jednoznaczny.\",\"evidence\":[{\"source\":\"photo\",\"text\":\"Widoczny jest tył smartfona; obok modułu aparatu znajduje się drobny, słabo odgraniczony ślad.\"},{\"source\":\"date\",\"text\":\"Podany fakt systemowy: od zakupu minęły 3 dni, więc zwrot mieści się w oknie.\"}],\"signalReview\":{\"photo_quality\":{\"verdict\":\"agree\",\"note\":\"Smartfon jest wyraźnie widoczny i można ocenić jego tył.\"},\"observed_category\":{\"verdict\":\"agree\",\"note\":\"Na zdjęciu znajduje się smartfon.\"},\"visible_damage_or_use\":{\"verdict\":\"not_assessable\",\"note\":\"Drobny ślad obok modułu aparatu może być zabrudzeniem lub uszkodzeniem; nie da się tego rozstrzygnąć.\"},\"condition\":{\"verdict\":\"not_assessable\",\"note\":\"Nie można potwierdzić ani wykluczyć, że widoczny ślad oznacza użycie lub uszkodzenie.\"}}}}"
+  }
+}
