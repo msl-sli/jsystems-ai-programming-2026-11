@@ -74,7 +74,8 @@ export function ChatScreen() {
 
   return (
     <div data-testid="chat-screen" className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
+      {/* Narrow screens: the button sits above the card so the card keeps the full width. */}
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <CaseSummaryCard
             caseInput={caseInput}
