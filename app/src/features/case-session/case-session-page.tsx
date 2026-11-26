@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { CaseForm } from "@/features/case-form";
+import { ChatScreen } from "@/features/chat";
+import { ProcessingController, ProcessingScreen } from "@/features/processing";
 import { useBrowserToday } from "@/lib/use-browser-today";
 import { CaseSessionProvider, useCaseSession } from "./provider";
 import { useLeavePageGuard } from "./use-leave-page-guard";
@@ -27,13 +29,14 @@ export function CaseSessionView() {
 
   if (state.status === "processing") {
     return (
-      <div data-testid="processing-screen" role="status">
-        Analizujemy zgłoszenie…
-      </div>
+      <ProcessingScreen
+        photoUrl={state.photoUrl}
+        stage={state.stage ?? "screening"}
+      />
     );
   }
   if (state.status === "chat") {
-    return <div data-testid="chat-screen">Rozmowa o zgłoszeniu</div>;
+    return <ChatScreen />;
   }
 
   const markDirty = () => setDirtyAt(state.resetCount);
@@ -58,6 +61,8 @@ export function CaseSessionView() {
 export function CaseSessionPage() {
   return (
     <CaseSessionProvider>
+      {/* Stays mounted across screens: runs the submit flow whenever status is "processing". */}
+      <ProcessingController />
       <CaseSessionView />
     </CaseSessionProvider>
   );
