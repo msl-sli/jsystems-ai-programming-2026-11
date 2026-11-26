@@ -30,8 +30,9 @@ playwright/.cache/
 .codex/tmp/
 .codex/*.sqlite*
 
-# Private agent briefs and Java build artifacts
+# Private agent briefs, worker logs and Java build artifacts
 .agent-briefs/
+.agent-logs/
 **/target/
 *.class
 /.idea
