@@ -158,6 +158,13 @@ async function main() {
       const fact = userMsg("u2", "Urządzenie spadło na podłogę i od tego czasu ma pęknięcie.");
       await post("c-chat-new-fact", "/api/chat", { caseContext: ctx, messages: [fact] }, "chat new fact (drop)");
     }
+  } else if (run === "chat-change") {
+    // A case whose initial decision is not a rejection, then a new fact that changes it (AC-33).
+    const e = await caseFlow("f-return-nodesc", returnE, "phone-2.jpeg");
+    if (e) {
+      const fact = userMsg("u3", "Urządzenie spadło na podłogę i od tego czasu ma pęknięcie.");
+      await post("f-chat-new-fact", "/api/chat", { caseContext: contextOf(e), messages: [fact] }, "chat new fact (drop) on a non-rejected return");
+    }
   } else if (run === "decisions-only" || run === "llm-always") {
     await caseFlow(`${run}-c-complaint-10d`, complaintC, "laptop-1.png");
   } else if (run === "invalid-key") {
