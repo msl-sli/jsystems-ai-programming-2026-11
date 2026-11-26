@@ -17,34 +17,34 @@ The app is scaffolded live during the course through a structured process:
 Use this checklist during scaffolding. Some items are provided by the boilerplate (e.g. `create-next-app` ships `tsconfig.json`, ESLint config). Others you add explicitly.
 
 ### Project setup
-- [ ] Choose framework (Next.js, Express+Vite, Mastra, other) — record in ADR
-- [ ] Initialize project (e.g. `npx create-next-app@latest` or equivalent)
-- [ ] TypeScript config (`tsconfig.json`)
-- [ ] Package manager chosen (npm / pnpm / bun)
+- [x] Choose framework (Next.js, Express+Vite, Mastra, other) — record in ADR
+- [x] Initialize project (e.g. `npx create-next-app@latest` or equivalent)
+- [x] TypeScript config (`tsconfig.json`)
+- [x] Package manager chosen (npm / pnpm / bun)
 
 ### Code quality
-- [ ] ESLint config (`eslint.config.js`)
+- [x] ESLint config (`eslint.config.js`)
 - [ ] Prettier config (`.prettierrc`, `.prettierignore`)
 - [ ] `.editorconfig` (optional but recommended)
 
 ### Testing
-- [ ] Unit/integration test runner (Vitest / Jest)
-- [ ] E2E test runner (Playwright)
+- [x] Unit/integration test runner (Vitest / Jest)
+- [x] E2E test runner (Playwright)
 - [ ] Test setup file (e.g. `test-setup.ts` with Testing Library matchers)
 
 ### Environment
-- [ ] `.env.example` with required env vars (API keys, ports)
+- [x] `.env.example` with required env vars (API keys, ports)
 - [ ] `.env` created locally (gitignored)
-- [ ] `.gitignore` (node_modules, .env, build output, etc.)
+- [x] `.gitignore` (node_modules, .env, build output, etc.)
 
 ### AI integration
-- [ ] Vercel AI SDK (`ai` package) or equivalent
+- [x] Vercel AI SDK (`ai` package) or equivalent
 - [ ] API route / endpoint for chat
 - [ ] Model configuration (provider, model name, API key from env)
 
 ### Design
 - [ ] Design tokens (`../assets/design-tokens.json`)
-- [ ] Tailwind CSS or equivalent
+- [x] Tailwind CSS or equivalent
 - [ ] Logo and favicon (`../assets/`)
 - [ ] Design system doc (`../docs/design-guidelines.md`)
 
@@ -58,3 +58,16 @@ Use this checklist during scaffolding. Some items are provided by the boilerplat
 - Don't create config files manually if the boilerplate provides them — it leads to conflicts.
 - Let the agent research and recommend the right boilerplate based on the ADR decisions.
 - Keep this folder organized: separate routes, components, domain logic, and tests.
+
+## Commands
+
+Run from `app/`:
+
+- `npm run dev` - Next.js dev server
+- `npm run build` - production build
+- `npm run start` - production server on port 3000
+- `npm run lint` - ESLint, zero warnings allowed
+- `npm run typecheck` - `tsc --noEmit`
+- `npm run format` - Prettier write
+
+AI Elements source: shadcn/ui (ui.shadcn.com/docs/ai-elements), Radix variant, installed via npx shadcn@latest add message-scroller message bubble input-group

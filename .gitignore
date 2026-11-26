@@ -36,3 +36,9 @@ playwright/.cache/
 **/target/
 *.class
 /.idea
+
+# HSDC PoC: evaluation reports (ADR-003 §3.7)
+app/eval-reports/
+
+# Playwright MCP snapshots and screenshots
+.playwright-mcp/
