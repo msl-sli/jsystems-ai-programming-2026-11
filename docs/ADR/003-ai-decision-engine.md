@@ -392,7 +392,7 @@ LLM and Decisions doubles are **HTTP-level replays**: both OpenRouter models are
 | Templates | Unit | each template route | AC-25 order, AC-26 notice, Polish, day count for R1, ≥ 2 tips for better_photo | Singular/plural "dzień/dni" |
 | Template ↔ policy guard | Unit | templates + policy files | Every address, e-mail, day count in templates exists in the policy | Policy edited → test fails |
 | Outcome mapping & validation | Unit | all case types × outcomes; invalid rule IDs | As previous revision | — |
-| Screening service | Integration (replay) | captured decisions responses | Parsed `ScreeningResult` with certainties and cost | Refusal capture; 5xx; timeout |
+| Screening service | Integration (replay) | captured decisions responses | Parsed `ScreeningResult` with certainties and cost | Real captured errors (401/404); timeout = delayed real capture; refusal only from a real capture, else reported gap — never hand-written responses or `ai/test` mock models |
 | Screening request shape | Integration | intercepted request in injected fetch | `state` array with image part as data URL at top level; no description; no `user`/`session_id`; `data_collection: deny` | — |
 | Escalated decision | Integration (replay) | captured chat-completions responses | Valid `DecisionResult` with `decisionPath = llm` | Corrective retry; disagreement logged |
 | LLM request shape | Integration | intercepted request | image part present, screening block present, `require_parameters: true` | Fixed-category explain-only prompt in llm-always |

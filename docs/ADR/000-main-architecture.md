@@ -438,7 +438,7 @@ sequenceDiagram
 
 ### Philosophy
 
-TDD per `AGENTS.md`: tests from PRD ACs and these ADRs first, red for the expected reason, then green. Deterministic logic (dates, routing R1–R10 × modes, mapping, templates, schemas) carries most ACs and is tested exhaustively. Both OpenRouter models are replaced in unit/integration tests by an injected `fetch` that replays **captured real HTTP responses** (`npm run capture:llm`, metadata with date, endpoint, model, prompt version). A small live E2E suite asserts stable properties only. `npm run eval:decisions` compares decision modes and informs the threshold. Every task ends with Manual QA through the Playwright CLI.
+TDD per `AGENTS.md`: tests from PRD ACs and these ADRs first, red for the expected reason, then green. Deterministic logic (dates, routing R1–R10 × modes, mapping, templates, schemas) carries most ACs and is tested exhaustively. Both OpenRouter models are replaced in unit/integration tests by an injected `fetch` that replays **captured real HTTP responses** (`npm run capture:llm`, metadata with date, endpoint, model, prompt version). Frontend component tests replay our own API responses recorded from the running app (`tests/fixtures/api-captures/`). No double is ever written from documentation. A live E2E suite (real app, real OpenRouter, no request interception) exercises every endpoint, decision path and mode and asserts stable properties only (plan §7a). `npm run eval:decisions` compares decision modes and informs the threshold. Every task ends with Manual QA through the Playwright CLI.
 
 ### Test layers
 
@@ -447,8 +447,8 @@ TDD per `AGENTS.md`: tests from PRD ACs and these ADRs first, red for the expect
 | Unit | Pure functions | `domain/*`, certainty computation, prompt assembly, policy parser, template guard | Vitest (node) |
 | Component | Rendering + interaction | Form, processing, chat (AI Elements customized), summary, dialogs | Vitest + Testing Library + jsdom |
 | Integration | Handlers + services with HTTP replays | Three endpoints, both models, all modes | Vitest (node), injected `fetch` |
-| E2E (no LLM) | Real stack | Validation, layout, keyboard | Playwright |
-| E2E (live) | Real stack + OpenRouter | L1–L6 (ADR-003 §8) | Playwright `@live` |
+| E2E (no LLM) | Real stack, no request interception | Validation, layout, keyboard on the Form screen (nothing that needs a submitted case) | Playwright |
+| E2E (live) | Real stack + real OpenRouter (both models), no interception | L1–L12 (plan §7a; L1–L6 detailed in ADR-003 §8), runs per `DECISION_MODE` and an invalid-key run | Playwright live project |
 | Evaluation | Offline report | Photos × synthetic forms × 3 modes | `npm run eval:decisions` |
 | Manual QA | Human-like | Every touched screen + brand comparison | Playwright CLI |
 
@@ -473,7 +473,7 @@ TDD per `AGENTS.md`: tests from PRD ACs and these ADRs first, red for the expect
 - TAC-03: `domain/` ≥ 95 % line/branch coverage overall and 100 % branch coverage for `routing`, `decision-rules`, `dates`; `domain/` imports nothing from `server/`, `features/`, `next` or `ai`.
 - TAC-04: No client bundle contains `OPENROUTER_API_KEY`, `server/` modules or policy contents (search `.next/static` after build).
 - TAC-05: Every capture in `tests/fixtures/llm-captures/` has metadata referencing the current prompt version.
-- TAC-06: `npm run test:e2e:live` passes L1–L6 with the configured models.
+- TAC-06: `npm run test:e2e:live` passes L1–L12 (plan §7a) with the configured models; E2E and Manual QA use no request interception and the app has no test-only bypass flags.
 - TAC-07: Every `DecisionResult` has a category of the case type, non-empty valid rule IDs, and `decisionPath`/`routeRule`/`mode` set.
 - TAC-08: Server logs contain no photo bytes, description text or chat text.
 - TAC-09: Both models pass the pre-implementation verification (TAC-003-07) before any feature code is written.

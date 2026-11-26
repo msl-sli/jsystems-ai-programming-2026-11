@@ -231,9 +231,9 @@ Integration tests call the exported `POST` functions with real `Request` objects
 
 | Scenario | Type | Input | Expected output | Edge cases |
 |---|---|---|---|---|
-| Screening happy path | Integration | Valid case + compressed photo | 200, `ScreeningResult` with certainties | Refusal capture → 200 with `refused` |
+| Screening happy path | Integration | Valid case + compressed photo | 200, `ScreeningResult` with certainties | Real refusal capture (if one can be provoked) → 200 with `refused`; otherwise reported as a coverage gap |
 | Screening invalid image | Integration | PNG bytes as JPEG; 1.6 MB; bad base64 | 415 / 413 / 400 | Empty string |
-| Screening provider failure / timeout | Integration | Replay 502; delayed replay | 502 / 504 | Client abort |
+| Screening provider failure / timeout | Integration | Replay of the real captured provider errors (invalid key 401, unknown model 400/404); delayed replay of a real success capture | 502 / 504 | Client abort |
 | Decision — template route | Integration | Screening fixture satisfying R8 | 200, `decisionPath = template`, no outbound request recorded by fetch spy | R1, R2, R4, R5, R7 |
 | Decision — llm route | Integration | Complaint fixture | 200, `decisionPath = llm`, exactly one chat request | Corrective retry |
 | Decision mode switch | Integration | Same input with each `DECISION_MODE` | Paths per ADR-003 §3.3 | Invalid mode → 500 |

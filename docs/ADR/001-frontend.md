@@ -281,15 +281,15 @@ sequenceDiagram
 | Photo hint and AI notice | Component | Switch type | AC-10 hint per type; AC-11 notice above submit | No type selected → no hint |
 | Submit invalid | Component | Two invalid fields | No fetch; messages; focus on first invalid (AC-12) | — |
 | Compression | Unit (jsdom canvas mocked) + E2E | 3024×3135 JPEG | Output JPEG ≤ 1568 px long edge, ≤ 1.5 MB | Small image not upscaled |
-| Processing stages | Component (fetch stubbed with delays) | Valid submit | "Analizujemy zdjęcie…" during `/api/cases/screening`, then "Przygotowujemy decyzję…" during `/api/cases/decision`; submit disabled (AC-14) | Decision request carries the screening from stage 1 |
+| Processing stages | Component (fetch answers = real recorded API responses from `tests/fixtures/api-captures/`, replayed with delays) | Valid submit | "Analizujemy zdjęcie…" during `/api/cases/screening`, then "Przygotowujemy decyzję…" during `/api/cases/decision`; submit disabled (AC-14) | Decision request carries the screening from stage 1 |
 | Prompt Input customization | Component | Render chat | No attachment button; Polish placeholder and labels | — |
 | Processing failure | Component | Stage 1 or 2 returns 502; or 90 s elapses (fake timers) | Form with values + photo, AC-17 banner; retry resubmits same data | Failure in stage 2 |
 | First message order | Component | Fixture `FirstMessage` | Sections in AC-25 order, AC-26 notice, no raw `*`/`#` visible | — |
 | Case summary | Component | Fixture case | All AC-29 fields, badge variant per category | Mobile collapsed |
 | Chat input limits | Component | "", "   ", 1000, 1001 chars | Send disabled / AC-30 message | Enter vs Shift+Enter |
-| Streaming state | Component (transport stub streaming chunks) | Send message | Typing indicator, progressive text, send disabled (AC-31) | — |
+| Streaming state | Component (transport replays a real recorded SSE stream from `tests/fixtures/api-captures/`) | Send message | Typing indicator, progressive text, send disabled (AC-31) | — |
 | Decision change render | Component | Stream with `data-decision` part | "Zmiana decyzji: <label>" header, notice, badge updated (AC-33) | Two changes in a row |
-| Chat error retry | Component | Transport errors once then succeeds | Error text + retry; one user message after retry (AC-37) | Partial text discarded |
+| Chat error retry | Component | Transport replays the real recorded error response once, then a real recorded success | Error text + retry; one user message after retry (AC-37) | Partial text discarded |
 | New case dialog | Component | Confirm / cancel | Empty form / unchanged chat (AC-38) | Emphasized variant for better-photo case |
 | Leave-page guard | Component + E2E | Filled form, reload | `beforeunload` registered; after reload empty form (AC-39) | Not registered on empty form |
 | Responsive + keyboard | E2E (no LLM) + Manual QA | 360, 768, 1920 px; Tab-only navigation | No horizontal scroll; every action reachable (AC-41, AC-42) | Date picker by keyboard |
@@ -299,5 +299,5 @@ sequenceDiagram
 - TAC-001-01: All Polish UI strings from PRD §6 appear verbatim in `features/*/texts` and are asserted by at least one component test each.
 - TAC-001-02: No `localStorage`, `sessionStorage`, IndexedDB or cookie writes exist in client code.
 - TAC-001-03: The image sent to `/api/cases/screening` and `/api/cases/decision` is always `image/jpeg`, long edge ≤ 1568 px, decoded size ≤ 1.5 MB.
-- TAC-001-04: Playwright accessibility scan (axe) on Form and Chat screens reports zero serious or critical violations.
+- TAC-001-04: Playwright accessibility scan (axe) on Form and Chat screens reports zero serious or critical violations (Form in the no-LLM E2E suite; Processing and Chat only in the live suite on the real flow, never via intercepted requests).
 - TAC-001-05: Page width equals viewport width (no horizontal scroll) at 360 px and 1920 px on Form, Processing and Chat screens.
