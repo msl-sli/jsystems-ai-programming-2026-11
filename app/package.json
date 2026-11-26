@@ -14,7 +14,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:live": "playwright test --project=live",
-    "capture:llm": "tsx --conditions=react-server --env-file=.env.local scripts/capture-llm.ts"
+    "capture:llm": "tsx --conditions=react-server --env-file=.env.local scripts/capture-llm.ts",
+    "eval:decisions": "tsx --conditions=react-server --env-file=.env.local scripts/eval-decisions.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "4.0.188",
