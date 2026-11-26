@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary
 
-Hardware Service Decision Copilot is a **proof of concept (PoC)** of a self-service web application in which a customer files a complaint (warranty claim) or a return for a piece of electronic equipment by filling in a form and uploading one photo. The system analyzes the photo with a multimodal AI model and an AI decision agent then applies the company's complaint or return policy, giving the customer an immediate decision with a justification and next steps. The customer can then continue in a chat with the agent to ask questions or add information. The goal is to reduce manual work for the customer support and hardware service teams on clear-cut cases and to give customers a fast, consistent first answer.
+Hardware Service Decision Copilot is a **proof of concept (PoC)** of a self-service web application in which a customer files a complaint (warranty claim) or a return for a piece of electronic equipment by filling in a form and uploading one photo. The system first screens the photo with a decision model that rates photo quality, device category, visible damage and condition with a measurable confidence; clear-cut cases are decided directly from the screening and the policy rules, while uncertain cases are escalated to a multimodal AI model that applies the company's complaint or return policy, giving the customer an immediate decision with a justification and next steps. The customer can then continue in a chat with the agent to ask questions or add information. The goal is to reduce manual work for the customer support and hardware service teams on clear-cut cases and to give customers a fast, consistent first answer.
 
 ---
 
@@ -39,15 +39,18 @@ Uploads a dark, blurry photo, or tries to return a phone with a scratched screen
 2. Customer selects case type **Return**, selects equipment category, enters name/model, selects purchase date, optionally enters a reason, uploads one photo.
 3. The system validates the form inline; the **Submit** button sends the case only when all validations pass.
 4. The system shows a processing state with stages: "Analyzing photo…" → "Preparing decision…".
-5. The system compresses the photo and sends it to the multimodal AI model with the **return** image-analysis instructions. The model returns a description of the product's visible condition and whether the photo is assessable.
-6. The decision agent receives: form data, image description, the return policy (`docs/policies/return-policy.md`) and the return decision instructions. It returns a decision category and a justification citing policy rule IDs.
+5. **Screening ("Analyzing photo…"):** the system compresses the photo and sends it, together with the case type, category and name/model, to a decision model. The decision model answers fixed questions — is the photo assessable (and if not, why), which device category is visible, is any damage or sign of use visible, what is the condition — each with a confidence level. It produces no free text.
+6. **Decision ("Preparing decision…"):** the system applies the date rules of the return policy (`docs/policies/return-policy.md`) and the screening result:
+   - if every screening answer reaches the confidence threshold (PoC default 80 %) and the answers settle the case under the policy, the decision and its justification are produced **without a further AI call**, from fixed Polish texts that cite policy rule IDs and the screening evidence;
+   - otherwise the case is **escalated** to the multimodal AI model with the return decision instructions; it receives the photo, form data, the policy and the screening answers (with the uncertain areas marked for verification) and returns a decision category and a justification citing policy rule IDs.
+   The exact routing rules are defined in `docs/ADR/003-ai-decision-engine.md` §3.3.
 7. The system switches to the Chat screen. The first agent message contains: greeting, decision, justification, what is visible in the photo, next steps, and the automated-decision notice.
 8. Customer reads the decision and may ask follow-up questions (Flow 4.5).
 
 ### 4.2 Happy path — complaint accepted
 Same as 4.1 with these differences:
 - Case type **Complaint**; the reason/description field is required.
-- The multimodal model uses the **complaint** image-analysis instructions: identify whether the product is damaged, what the damage is, and its likely cause (manufacturing defect vs. impact, liquid, tampering, wear).
+- After screening, a complaint that passes the warranty-date and photo checks is always escalated to the multimodal AI model with the **complaint** decision instructions, because the screening does not judge the cause of damage or the consistency of the description: the model identifies whether the product is damaged, what the damage is, and its likely cause (manufacturing defect vs. impact, liquid, tampering, wear).
 - The agent uses the complaint policy (`docs/policies/complaint-policy.md`) and complaint decision instructions, and selects **Accepted – repair** or **Accepted – replacement or refund** per rule CMP-4.
 
 ### 4.3 Alternative — rejected case
@@ -57,19 +60,19 @@ Same as 4.1 with these differences:
 
 ### 4.4 Alternative — photo not assessable or uncertain result
 1. Steps 1–5 as in 4.1 / 4.2.
-2. The image analysis reports the photo as not assessable (blurry, too dark, different product type than the selected category, no product visible), or the agent cannot determine the outcome under the policy (uncertain sign of use, unknown damage cause, description contradicts photo).
+2. The screening (or, for escalated cases, the multimodal model) reports the photo as not assessable (blurry, too dark, different product type than the selected category, no product visible), or the agent cannot determine the outcome under the policy (uncertain sign of use, unknown damage cause, description contradicts photo).
 3. The agent returns **Needs manual review**. The first chat message explains exactly what was not possible to assess and gives next steps: for a not-assessable photo — start a new case with a better photo (with tips: daylight, whole device visible, damage in focus); for other uncertain cases — contact support.
 4. The **New case** button is shown prominently in this state.
 
 ### 4.5 Chat conversation
 1. Customer types a message (question or additional information) and sends it.
 2. The system shows the message in the chat and an agent "typing" indicator; the agent's answer appears progressively as it is generated.
-3. The agent answers using the full context: form data, image description, policy, the first decision message and the whole conversation so far.
+3. The agent answers using the full context: form data, screening answers (and the multimodal model's photo findings for escalated cases), policy, the first decision message and the whole conversation so far.
 4. If the new information changes the outcome under the policy (e.g. the customer states the device was dropped), the agent explicitly announces a changed decision, with the new category and justification.
 5. Customer can continue the conversation or start a new case.
 
 ### 4.6 Error path — service unavailable
-1. On submit, if image analysis or decision generation fails or exceeds the time limit, the system returns the customer to the Form screen with all entered data and the photo preserved and shows an error message with a retry option.
+1. On submit, if screening or decision generation fails or exceeds the time limit, the system returns the customer to the Form screen with all entered data and the photo preserved and shows an error message with a retry option.
 2. In the chat, if an agent answer fails, the system shows an error under the customer's message with a **Retry** action; the customer's message is not lost.
 
 ### 4.7 Starting a new case
@@ -115,7 +118,7 @@ UI texts below are the required Polish strings; equivalent wording is acceptable
 ### Processing
 - **AC-14** After a valid submit, the Submit button is disabled and a processing state is shown with the stage texts "Analizujemy zdjęcie…" and then "Przygotowujemy decyzję…".
 - **AC-15** The photo is compressed by the system before AI analysis; the customer does not perform any extra step and sees no compression option.
-- **AC-16** A return case is analyzed with the return image-analysis instructions; a complaint case with the complaint image-analysis instructions. A return case never receives a complaint decision category and vice versa.
+- **AC-16** The case type is part of every screening and every AI decision request, and an escalated case uses the decision instructions and policy of its case type. A return case never receives a complaint decision category and vice versa.
 - **AC-17** If processing fails or takes longer than 90 seconds, the system shows the Form screen with all values and the photo preserved and the message "Nie udało się przeanalizować zgłoszenia. Spróbuj ponownie za chwilę." with a "Spróbuj ponownie" button that resubmits the same data.
 
 ### AI Decision
@@ -239,16 +242,21 @@ flowchart TD
     B --> C{Form valid?}
     C -- No --> B1[Show field errors] --> B
     C -- Yes --> D[Processing: compress photo]
-    D --> E{Case type}
-    E -- Return --> F1[Image analysis: return instructions]
-    E -- Complaint --> F2[Image analysis: complaint instructions]
-    F1 --> G{Analysis succeeded within 90 s?}
-    F2 --> G
+    D --> F[Screening: decision model rates photo quality, category, damage, condition with confidence]
+    F --> G{Screening succeeded within time limit?}
     G -- No --> B2[Form with data preserved + error + retry] --> B
-    G -- Yes --> H{Photo assessable?}
+    G -- Yes --> DR{Date rule decides? return after 14 days / complaint after 24 months}
+    DR -- Yes --> TL[Fixed-text decision citing the date rule]
+    DR -- No --> CF{All screening answers confident?}
+    CF -- No --> I[Escalation: multimodal model with photo + form + policy + screening answers]
+    CF -- Yes --> H{Photo assessable and category matches?}
     H -- No --> M[Decision: Needs manual review - better photo needed]
-    H -- Yes --> I[Decision agent: form data + image description + policy]
-    I --> J{Decision succeeded?}
+    H -- Yes --> ST{Settled by screening? return without description}
+    ST -- Yes --> TL2[Fixed-text decision: return accepted or rejected per RET-2]
+    ST -- No --> I
+    TL --> K
+    TL2 --> K
+    I --> J{Decision succeeded within 90 s total?}
     J -- No --> B2
     J -- Yes --> K{Decision category}
     K -- Accepted --> L1[First message: accepted + shipping steps]
@@ -274,14 +282,20 @@ flowchart TD
 
 ## 11. Agent / System Behavior Specification
 
-### 11.1 Image analysis (multimodal model)
-- **Purpose:** describe the visible condition of the product objectively; it does not make the decision.
+### 11.0 Screening (decision model)
+- **Purpose:** a fast first check of every case. The decision model receives the photo and the case type, category and name/model (not the description) and answers four fixed questions: photo quality (assessable, blurry, too dark, device not fully visible, no device), visible device category, whether any damage or sign of use is visible, and the condition level. Every answer carries a confidence level; the model writes no free text and makes no policy decision.
+- **Confidence threshold:** an answer counts as confident at or above the configured threshold (PoC default 80 %). If any answer is below it, or the model declines to answer, the case is escalated to the multimodal model.
+- **Decision without a further AI call:** allowed only when the date rules decide the case, or all answers are confident and settle it (photo not assessable or wrong device → "Wymaga weryfikacji przez konsultanta"; return without a description: no damage and like-new condition → "Zwrot przyjęty", visible signs of use → "Zwrot odrzucony"; contradictory answers are escalated). These first messages use fixed Polish texts and still meet AC-23..AC-28.
+- **Comparison mode:** for evaluation, the system can be configured to always escalate or to never escalate; the default is the hybrid behaviour above.
+
+### 11.1 Image analysis (multimodal model, escalated cases)
+- **Purpose:** for escalated cases, verify the screening answers (uncertain areas first) and describe the visible condition of the product objectively, as input to the decision in the same call.
 - **Return instructions:** confirm the product type matches the selected category; list every visible sign of use (scratches, scuffs, dents, cracks, stains, dirt, missing parts, liquid marks); state whether the product looks resaleable as new; mark uncertain observations as uncertain.
 - **Complaint instructions:** confirm the product type matches the selected category; describe visible damage (type, location, extent); assess the likely cause (manufacturing defect, impact, liquid, tampering, normal wear, not determinable); state whether the reported problem can be visible in a photo at all.
 - **Both:** report whether the photo is assessable and, if not, the specific reason (blurry, too dark, wrong product type, no product, product not fully visible). Never invent details not visible in the photo.
 
 ### 11.2 Decision agent
-- **Role:** apply the relevant policy (return or complaint, selected by case type) to the form data and image description, produce one decision category with a justification, and conduct the follow-up chat for this case only.
+- **Role:** apply the relevant policy (return or complaint, selected by case type) to the form data, screening answers and (for escalated cases) its own reading of the photo, produce one decision category with a justification, and conduct the follow-up chat for this case only.
 - **Separate instructions** for return and complaint cases, each with the matching policy document as the rules to follow.
 - **Allowed:**
   - give one decision from the allowed categories (AC-18, AC-19),
@@ -314,4 +328,6 @@ flowchart TD
 - **Open question:** should a case reference number be shown to the customer? It is meaningful only once sessions are persisted (Phase 2).
 - **Open question:** should the number of chat messages per case be limited (cost control)?
 - **Phase 2 candidates (from the brief):** retrieval of customer data and purchase history (would verify purchase date and model); saving every session with all decisions and actions; RAG knowledge base on electronics, specifications and procedures.
+- **Known PoC limitation:** decisions made without a further AI call use Polish texts that copy facts from the fictional policies (addresses, deadlines). Replacing the policy documents therefore also requires updating those texts; an automated check flags any mismatch. This is an accepted exception to the constraint in §8 for the PoC.
+- **Risk:** a confident but wrong screening answer leads to a decision without the multimodal model's second look; the threshold is tuned with an evaluation report on the example photos, and the preliminary-decision notice and physical inspection mitigate it.
 - **Risk:** the agent's decision depends on the quality of a single photo; misclassification of visible damage is expected in some cases. The preliminary-decision notice and physical inspection mitigate it.
