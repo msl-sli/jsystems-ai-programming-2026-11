@@ -69,5 +69,10 @@ Run from `app/`:
 - `npm run lint` - ESLint, zero warnings allowed
 - `npm run typecheck` - `tsc --noEmit`
 - `npm run format` - Prettier write
+- `npm run test` - Vitest (unit + components), no network
+- `npm run test:watch` - Vitest watch
+- `npm run test:coverage` - Vitest with v8 coverage and domain thresholds
+- `npm run test:e2e` - Playwright (chromium, firefox, webkit), starts the app itself, no `@live` tests
+- `npm run test:e2e:live` - Playwright `live` project, real OpenRouter (costs money, needs `.env.local`)
 
 AI Elements source: shadcn/ui (ui.shadcn.com/docs/ai-elements), Radix variant, installed via npx shadcn@latest add message-scroller message bubble input-group
