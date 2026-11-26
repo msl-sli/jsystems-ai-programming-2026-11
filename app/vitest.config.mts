@@ -16,13 +16,8 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: [
-            "src/domain/**/*.test.ts",
-            "src/server/**/*.test.ts",
-            "src/app/api/**/*.test.ts",
-            "scripts/**/*.test.ts",
-            "src/test/**/*.test.ts",
-          ],
+          // Every `.ts` test under src/ and scripts/ runs in node; `.tsx` tests run in jsdom.
+          include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
         },
         // `server-only` throws outside the `react-server` condition. The alias is scoped to the
         // node project, because the `react-server` condition would change React's exports in jsdom.
