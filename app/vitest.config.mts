@@ -34,6 +34,9 @@ export default defineConfig({
         test: {
           name: "components",
           environment: "jsdom",
+          // Real example photos are decoded in jsdom; under CPU load (E2E running in parallel on
+          // this 4-core VM) one upload test exceeded the 5 s default. Assertions are unchanged.
+          testTimeout: 15_000,
           include: ["src/**/*.test.tsx"],
           setupFiles: ["./src/test/setup-dom.ts"],
         },
