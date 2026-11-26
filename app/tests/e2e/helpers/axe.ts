@@ -9,6 +9,12 @@ export async function expectNoSeriousA11yViolations(page: Page) {
     (v) => v.impact === "serious" || v.impact === "critical",
   );
   expect(
-    serious.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s)`),
+    serious.map(
+      (v) =>
+        `${v.id} (${v.impact}): ${v.nodes.length} node(s): ` +
+        v.nodes
+          .map((n) => `${n.target.join(" ")} — ${(n.failureSummary ?? "").replace(/\s+/g, " ").slice(0, 200)}`)
+          .join(" | "),
+    ),
   ).toEqual([]);
 }

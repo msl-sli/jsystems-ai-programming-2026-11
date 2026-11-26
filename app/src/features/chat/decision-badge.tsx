@@ -19,8 +19,8 @@ export function decisionTone(category: DecisionCategory): DecisionTone {
 }
 
 const TONE_CLASSES: Record<DecisionTone, string> = {
-  accepted: "border-brand-success/30 bg-brand-success/10 text-brand-success",
-  rejected: "border-destructive/30 bg-destructive/10 text-destructive",
+  accepted: "border-brand-success/30 bg-brand-success/10 text-decision-accepted-fg",
+  rejected: "border-destructive/30 bg-destructive/10 text-decision-rejected-fg",
   manual: "border-border bg-accent text-accent-foreground",
 };
 
